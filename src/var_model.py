@@ -110,7 +110,8 @@ class VARModel:
     def estimate(self, time_series, prng, fit_intercept = False, crit_type = 'sbc', ndx = None):
         """Stepwise selection of the model using QR decomposition according to Neumaier and Schneider across
            model orders [prng[0], prng[1]].  The criterion 'crit' is the model order selection criterion.
-           Optionally the (integer) index array indicates which parts of the time series are contiguous and which are not."""
+           Optionally the (integer) index array indicates which parts of the time series are contiguous and which are not.
+           Code is mostly a port from the MATLAB ARFIT toolbox by the same authors."""
         
         p_min, p_max = prng[0], prng[1]
         fi = 1 if fit_intercept else 0

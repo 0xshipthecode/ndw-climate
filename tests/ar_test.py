@@ -17,7 +17,7 @@ from datetime import datetime
 
 
 def ident_model(ts):
-    v2 = VarModel()
+    v2 = VARModel()
     v2.estimate(ts, [1, 30], True, 'sbc', None)
     return v2.order()
 
@@ -53,7 +53,8 @@ if __name__ == '__main__':
     
     # simulate 10000 time series (one surrogate)
     p = Pool(4)
-    sim_ts_all = p.map(simulate_model, [(v, res)] * 10000)
+    sim_ts_all = p.map(ident_model, [ts[:,0]] * 10000)
+#    sim_ts_all = p.map(simulate_model, [(v, res)] * 10000)
     
     delta = datetime.now() - t1
     
