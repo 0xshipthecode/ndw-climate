@@ -1,4 +1,5 @@
 
+import cProfile
 
 import numpy as np
 import pylab as pb
@@ -24,9 +25,12 @@ def ident_model(ts):
 
 def simulate_model(t):
     v, res = t
-    r = res.copy()
-    np.random.shuffle(r)
-    return v.simulate_with_residuals(res)
+    r = np.zeros_like(res)
+    b = np.random.uniform(size = (len(r),))
+    ndx = np.argsort(b)
+    r[ndx] = res
+#        np.random.shuffle(r)
+    return v.simulate_with_residuals(r)
 
 
 def f(x):
@@ -47,14 +51,15 @@ if __name__ == '__main__':
     v.estimate(ts[:,0], [1, 30], True, 'sbc')
     res = v.compute_residuals(ts[:, 0])
     
-    t1 = datetime.now()
+#    cProfile.run('simulate_model((v, res))')
     
-    simulate_model((v, res))
+    print("Running simulations")
+    t1 = datetime.now()
     
     # simulate 10000 time series (one surrogate)
     p = Pool(4)
-    sim_ts_all = p.map(ident_model, [ts[:,0]] * 10000)
-#    sim_ts_all = p.map(simulate_model, [(v, res)] * 10000)
+#    sim_ts_all = p.map(ident_model, [ts[:,0]] * 10000)
+    sim_ts_all = p.map(simulate_model, [(v, res)] * 10000)
     
     delta = datetime.now() - t1
     
