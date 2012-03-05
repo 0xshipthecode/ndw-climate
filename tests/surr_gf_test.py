@@ -27,7 +27,7 @@ sd.prepare_surrogates(pool)
 print("Prep: elapsed time %s" % str(datetime.now() - t1))
 
 t1 = datetime.now()
-sd.construct_surrogate(pool)
+sd.construct_surrogate(None)
 print("Gen: elapsed time %s" % str(datetime.now() - t1))
 
 t1 = datetime.now()

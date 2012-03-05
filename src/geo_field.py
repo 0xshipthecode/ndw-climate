@@ -23,6 +23,9 @@ class GeoField:
         self.lats = None
         self.tm = None
         
+    def data(self):
+        return self.d
+        
     
     def use_existing(self, d, lons, lats, tm):
         """Initialize with already existing data."""
