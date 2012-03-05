@@ -10,3 +10,7 @@ lib/var_model_acc.so: lib/var_model_acc.c
 
 lib/var_model_acc.c: src/var_model_acc.pyx
 	cython -o lib/var_model_acc.c src/var_model_acc.pyx
+
+	
+clean:
+	rm lib/var_model_acc.so
