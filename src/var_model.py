@@ -29,7 +29,11 @@ class VARModel:
         
     def order(self):
         """Return model order."""
-        return len(self.A) if self.A != None else 0
+        return self.A.shape[1] if self.A != None else 0
+    
+    def dimension(self):
+        """Return model dimension."""
+        return len(self.w)
     
     
     def simulate_with_residuals(self, residuals, ndisc = 100):
@@ -40,7 +44,7 @@ class VARModel:
         A = self.A
         w = self.w
         
-        m, p = A.shape[0], A.shape[1] / A.shape[0]
+        m, p = self.dimension(), self.order()
         N = residuals.shape[0]
         ts = np.zeros((N, m))
 
@@ -51,8 +55,9 @@ class VARModel:
         
         # spin-up to random state
         # this is a HACK, the input and output arrays are the same. this exploits the fact
-        # that (1) eps_noise is not used anymore and (2) the overwriting does not affect the computation
-        # see function execute_Aupw.  The vector u ends up being the last state of the VAR model 
+        # that (1) eps_noise is not used later in this func and (2) the overwriting does not
+        # affect the computation see function execute_Aupw.  The vector u ends up being the
+        # last state of the VAR model. 
         var_model_acc.execute_Aupw(A, w, u, eps_noise, eps_noise)
         
 #        for i in range(ndisc):
@@ -223,7 +228,7 @@ class VARModel:
         A = self.A
         
         ts = time_series[:, np.newaxis] if time_series.ndim == 1 else time_series
-        m, p = A.shape[0], A.shape[1] / A.shape[0]
+        m, p = self.dimension(), self.order()
         N = ts.shape[0]
         Nres = N - p
         res = np.zeros((Nres, m))

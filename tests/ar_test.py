@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     # read testing csv file
     data = []
-    rdr = csv.reader(open("../data/test2.csv", "r"))
+    rdr = csv.reader(open("data/test2.csv", "r"))
     for line in rdr:
         l = map(lambda x: float(x), line)
         data.append(l)

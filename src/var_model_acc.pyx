@@ -28,11 +28,11 @@ def execute_Aupw(np.ndarray[DTYPE_t, ndim=2] A not None,
         # unroll the matrix multiplication manually serial CPU-style (here instead of np.dot)
         for j in range(m):
             v[j] = w[j] + ints[i, j]
-            for k in range(m):
+            for k in range(mp):
                 v[j] += A[j, k] * u[k]
 
         # shift everything by m elements
-        for j in range(mp-m, m, -1):
+        for j from mp-m > j >= 0:
             u[j+m] = u[j]                
 
         # first m elements are copied from v
