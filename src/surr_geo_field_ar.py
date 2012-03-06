@@ -14,23 +14,11 @@ import numpy as np
 
 
 def _prepare_surrogates(a):
-    i, j, ts = a
+    i, j, order_range, crit, ts = a
     v = VARModel()
-    v.estimate(ts, [1, 30], True, 'sbc', None)
+    v.estimate(ts, order_range, True, crit, None)
     r = v.compute_residuals(ts)
     return(i, j, v, r)
-
-
-def _generate_surrogate(a):
-    i, j, v, res, N = a
-    
-    # generate shuffled residuals
-    ndx = np.argsort(np.random.uniform(size = (len(res),)))
-    r = np.zeros_like(res)
-    r[ndx] = res
-
-    # run the simulation
-    return (i, j, v.simulate_with_residuals(r[:N, :]))
 
 
 class SurrGeoFieldAR(GeoField):
@@ -38,17 +26,19 @@ class SurrGeoFieldAR(GeoField):
        and construct surrogates of itself from the AR(k) models."""
     
     
-    def __init__(self):
+    def __init__(self, order_range = [0, 30], crit = 'sbc'):
         """"""
         GeoField.__init__(self)
         self.sd = None
+        self.order_range = order_range
+        self.crit = crit
         
         
     def save_field(self, fname):
         """Save the current field in a pickle file.
            The current surrogate data is not saved and must be generated anew after unpickling."""
         with open(fname, "w") as f:
-            cPickle.dump([self.d, self.lons, self.lats, self.tm, self.job_data, self.max_ord], f)
+            cPickle.dump([self.d, self.lons, self.lats, self.tm, self.max_ord, self.model_grid, self.residuals], f)
 
         
     def load_field(self, fname):
@@ -59,8 +49,9 @@ class SurrGeoFieldAR(GeoField):
         self.lons = lst[1]
         self.lats = lst[2]
         self.tm = lst[3]
-        self.job_data = lst[4]
-        self.max_ord = lst[5]
+        self.max_ord = lst[4]
+        self.model_grid = lst[5]
+        self.residuals = lst[6]
 
 
     def surr_data(self):
@@ -74,7 +65,6 @@ class SurrGeoFieldAR(GeoField):
         self.lons = other.lons.copy()
         self.lats = other.lats.copy()
         self.tm = other.tm.copy()
-        self.job_data = None
             
         
     def prepare_surrogates(self, pool = None):
@@ -82,8 +72,7 @@ class SurrGeoFieldAR(GeoField):
            (1) identifying the AR model for each time series using sbc criterion,
            (2) compute the residuals which will be shuffled to generate surrogates.
         """
-
-        # optional parallel computation
+        
         if pool == None:
             map_func = map
         else:
@@ -92,46 +81,57 @@ class SurrGeoFieldAR(GeoField):
         # burst the time series
         num_lats = len(self.lats)
         num_lons = len(self.lons)
+        num_tm = len(self.tm)
 
-        # identify each AR(k) model and compute the residuals
-        job_data = [ (i, j, self.d[:, i, j]) 
-                     for i in range(num_lats) for j in range(num_lons) ]
-        
+        # run the job in parallel
+        job_data = [ (i, j, self.order_range, self.crit, self.d[:, i, j]) for i in range(num_lats) for j in range(num_lons)]
         job_results = map_func(_prepare_surrogates, job_data)
         
-        # find out maximal order which bounds the length of generated surrogates
+        # find out maximal order (and thus length of residuals for entire dataset)
         max_ord = max([r[2].order() for r in job_results])
-        num_tm_s = self.d.shape[0] - max_ord
+        num_tm_s = num_tm - max_ord
         
-        # create the job_data structure for the surrogate constructor function
-        job_data = []
+        self.model_grid = np.zeros((num_lats, num_lons), dtype = np.object)
+        self.residuals = np.zeros((num_tm_s, num_lats, num_lons), dtype = np.float64)
+
         for i, j, v, r in job_results:
-            job_data.append((i, j, v, r, num_tm_s))
+            self.model_grid[i,j] = v
+            self.residuals[:, i, j] = r[:num_tm_s, 0]
 
         # store both items
         self.max_ord = max_ord
-        self.job_data = job_data
-        
-        return True
     
 
-    def construct_surrogate(self, pool = None):
-        """Construct a new surrogate time series."""
-        
-        # optional parallel computation
-        if pool == None:
-            map_func = map
-        else:
-            map_func = pool.map
+    def construct_surrogate(self):
+        """Construct a new surrogate time series.  The construction is not done in parallel as
+           the entire surrogate generation and processing loop will be split into independent tasks.
+        """
         
         num_lats = len(self.lats)
         num_lons = len(self.lons)
         num_tm_s = len(self.tm) - self.max_ord
         
         self.sd = np.zeros((num_tm_s, num_lats, num_lons))
-        sts_list = map_func(_generate_surrogate, self.job_data)
 
-        for i, j, ts in sts_list:
-            self.sd[:, i, j] = ts[:,0]
-            
-        return True
+        # space for shuffled residuals
+        r = np.zeros((num_tm_s,1), dtype = np.float64)
+        
+        # run through entire grid
+        for i in range(num_lats):
+            for j in range(num_lons):
+                # generate shuffled residuals
+                ndx = np.argsort(np.random.uniform(size = (num_tm_s,)))
+                r[ndx, 0] = self.residuals[:, i, j]
+
+                self.sd[:, i, j] = self.model_grid[i, j].simulate_with_residuals(r)[:, 0]
+
+
+    def model_orders(self):
+        """Return model orders of all models in grid."""
+        mo = np.zeros_like(self.model_grid, dtype = np.int32)
+        
+        for i in range(len(self.lats)):
+            for j in range(len(self.lons)):
+                mo[i,j] = self.model_grid[i, j].order()
+                
+        return mo

@@ -24,7 +24,7 @@ class VARModel:
         """Initialize as empty model."""
         self.A = None
         self.w = None
-        self.Lt = None
+        self.U = None
         
         
     def order(self):
@@ -48,35 +48,19 @@ class VARModel:
         N = residuals.shape[0]
         ts = np.zeros((N, m))
 
-        u = np.zeros((m*p,))
+        # predictors always start with zeros
+        u = np.zeros((m*p,), dtype=np.float64)
         
-        # initialize system using noise with correct covariance matrix 
-        eps_noise = np.dot(np.random.normal(size=(ndisc, m)), self.Lt)
-        
-        # spin-up to random state
-        # this is a HACK, the input and output arrays are the same. this exploits the fact
-        # that (1) eps_noise is not used later in this func and (2) the overwriting does not
-        # affect the computation see function execute_Aupw.  The vector u ends up being the
-        # last state of the VAR model. 
-        var_model_acc.execute_Aupw(A, w, u, eps_noise, eps_noise)
-        
-#        for i in range(ndisc):
-#            np.dot(A, u, out = v)
-#            v += w
-#            v += eps_noise[i, :]
-#            u[m:] = u[:-m]
-#            u[:m] = v
-        
-        # start feeding in residuals and store result in ts
-        var_model_acc.execute_Aupw(A, w, u, residuals, ts)
-
-#        for i in range(N):
-#            v = np.dot(A, u, out = v)
-#            v += residuals[i, :]
-#            u[m:] = u[:-m]
-#            u[:m] = v
-#            ts[i, :] = v
+        # initialize system using noise with correct covariance matrix if required
+        if ndisc > 0:
+            eps_noise = np.dot(np.random.normal(size=(ndisc, m)), self.U)
             
+            # spin-up to random state, which is captured by vector u
+            var_model_acc.execute_Aupw(A, w, u, eps_noise, eps_noise)
+        
+        # start feeding in residuals and store result in ts, start with vector u as VAR(p) state
+        var_model_acc.execute_Aupw(A, w, u, residuals, ts)
+        
         return ts
     
 
@@ -90,24 +74,15 @@ class VARModel:
         ts = np.zeros((N, m))
         
         u = np.zeros((m*p,))
-        v = np.zeros((m,))
         
-        # construct noise with covariance matrix L^T * L
-        eps_noise = np.dot(np.random.normal(size=(N + ndisc, m)), self.L.T)
+        # construct noise with covariance matrix L * L^T
+        eps_noise = np.dot(np.random.normal(size=(N + ndisc, m)), self.U)
+       
+        # spin up the model by running it for ndisc samples
+        var_model_acc.execute_Aupw(A, w, u, eps_noise[:ndisc, :], eps_noise[:ndisc, :])
         
-        for i in range(ndisc):
-            np.dot(A, u, out = v)
-            v += w
-            v += eps_noise[i, :]
-            u[m:] = u[:-m]
-            u[:m] = v
-            
-        for i in range(N):
-            v = np.dot(A, u, out = v)
-            v += eps_noise[i + ndisc, :]
-            u[m:] = u[:-m]
-            u[:m] = v
-            ts[i, :] = v
+        # generate requested number of points
+        var_model_acc.execute_Aupw(A, w, u, eps_noise[ndisc:, :], ts)
             
         return ts
 
@@ -170,7 +145,7 @@ class VARModel:
             n_p[p] = m * p + fi
             q = n_p[p] + m
             
-            # execute downdating step if at lower order
+            # execute downdating step if required
             if p < p_max:
                 Rp = R[n_p[p]:q, n_p[p_max]:q_max]
                 L = linalg.cholesky(np.identity(m) + np.dot(np.dot(Rp, Mp), Rp.T)).T
@@ -179,7 +154,7 @@ class VARModel:
                 logdp[p] = logdp[p+1] + 2.0 * math.log(abs(np.prod(np.diag(L)))) 
         
             # compute selected criterion
-            sbc[p] = logdp[p] / m - math.log(N) * (N - n_p[p]) / N
+            sbc[p] = logdp[p] / m - math.log(N) * (1.0 - float(n_p[p]) / N)
             fpe[p] = logdp[p] / m - math.log(N * float(N - n_p[p]) / float(N + n_p[p])) 
 
         # find the best order
@@ -203,7 +178,7 @@ class VARModel:
                 scaler = np.max(sc[1:]) / sc[0]
                 R11[:, 0] *= scaler
                 
-            Aaug = linalg.solve(R11, R12).T
+            Aaug = linalg.solve(R11, R12).transpose()
             
             if fit_intercept:
                 self.w = Aaug[:,0] * scaler
@@ -216,8 +191,8 @@ class VARModel:
         dof = N - n_p[p_opt]
         C = np.dot(R22.T, R22) / dof
         
-        # store the Cholesky factor in L
-        self.Lt = linalg.cholesky(C).transpose()
+        # store the (upper tri) Cholesky factor in U, scipy.linalg.cholesky returns U s.t. U^T * U = C
+        self.U = linalg.cholesky(C)
         
         return sbc, fpe
     
@@ -253,15 +228,3 @@ class VARModel:
             
         # what remains are the residuals
         return res
-        
-    
-    def pickle_model(self, p):
-        """Save the model to file using the pickle libs."""
-        p.dump(self, [self.w, self.A])
-        
-
-    def unpickle_model(self, up):
-        """Load the model from the pickle file."""
-        lst = up.load()
-        self.w = lst[0]
-        self.A = lst[1]

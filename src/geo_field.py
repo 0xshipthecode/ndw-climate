@@ -5,10 +5,11 @@ Created on Thu Mar  1 11:17:39 2012
 @author: martin
 """
 
-from datetime import date
 import numpy as np
-from netCDF4 import Dataset
+import math
+from datetime import date
 
+from netCDF4 import Dataset
 
 class GeoField:
     """A class that represents the time series of a geographic field.  All represented fields
@@ -23,7 +24,9 @@ class GeoField:
         self.lats = None
         self.tm = None
         
+    
     def data(self):
+        """Return the stored data as a multi-array."""
         return self.d
         
     
@@ -99,4 +102,27 @@ class GeoField:
         # apply slice to the vars
         self.lons = self.lons[lon_ndx]
         self.lats = self.lats[lat_ndx]
+        
+
+    def transform_to_anomalies(self):
+        """Remove the yearly cycle from the time series."""
+        
+        # check if data is monthly or daily
+        d = self.d
+        delta = self.tm[1] - self.tm[0]
+        
+        if abs(delta - 1.0) < 0.1:
+            # daily data
+            for i in range(365):
+                mn = np.mean(d[i::365, :, :], axis = 0)
+                d[i::365, :, :] -= mn
+        elif abs(delta - 30) < 3.0:
+            # monthly data
+            for i in range(12):
+                mn = np.mean(d[i::12, :, :], axis = 0)
+                d[i::12, :, :] -= mn
+        else:
+            raise "Unknown temporal sampling in geographical field."
+
+        
         
