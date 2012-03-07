@@ -22,7 +22,7 @@ RECOMPUTE_MODEL = True
 
 
 def compute_surrogate_cov_eigvals(sd):
-    sd.construct_surrogate()
+    sd.construct_surrogate_with_noise()
     return pca_eigvals(sd.surr_data())[:NUM_EIGS]
 
 

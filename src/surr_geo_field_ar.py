@@ -102,7 +102,7 @@ class SurrGeoFieldAR(GeoField):
         self.max_ord = max_ord
     
 
-    def construct_surrogate(self):
+    def construct_surrogate_with_residuals(self):
         """Construct a new surrogate time series.  The construction is not done in parallel as
            the entire surrogate generation and processing loop will be split into independent tasks.
         """
@@ -126,6 +126,25 @@ class SurrGeoFieldAR(GeoField):
                 self.sd[:, i, j] = self.model_grid[i, j].simulate_with_residuals(r)[:, 0]
 
 
+    def construct_surrogate_with_noise(self):
+        """Construct a new surrogate time series.  The construction is not done in parallel as
+           the entire surrogate generation and processing loop will be split into independent tasks.
+           The AR processes will be fed noise according to the noise covariance matrix.  100 samples
+           will be used to spin-up the models.
+        """
+        
+        num_lats = len(self.lats)
+        num_lons = len(self.lons)
+        num_tm = len(self.tm)
+        
+        self.sd = np.zeros((num_tm, num_lats, num_lons))
+
+        # run through entire grid
+        for i in range(num_lats):
+            for j in range(num_lons):
+                self.sd[:, i, j] = self.model_grid[i, j].simulate(num_tm)[:,0]
+
+    
     def model_orders(self):
         """Return model orders of all models in grid."""
         mo = np.zeros_like(self.model_grid, dtype = np.int32)
