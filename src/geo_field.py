@@ -6,19 +6,22 @@ Created on Thu Mar  1 11:17:39 2012
 """
 
 import numpy as np
-import math
+import scipy as sp
 from datetime import date
-
 from netCDF4 import Dataset
 
+
 class GeoField:
-    """A class that represents the time series of a geographic field.  All represented fields
-       have two spatial dimensions (longitude, latitude) and one temporal dimension.  Optionally
-       the fields may have a height dimension.""" 
+    """
+    A class that represents the time series of a geographic field.  All represented fields
+    have two spatial dimensions (longitude, latitude) and one temporal dimension.  Optionally
+    the fields may have a height dimension.
+    """ 
     
     def __init__(self):
-        """Initialize to empty data."""
-
+        """
+        Initialize to empty data.
+        """
         self.d = None
         self.lons = None
         self.lats = None
@@ -26,13 +29,17 @@ class GeoField:
         
     
     def data(self):
-        """Return the stored data as a multi-array."""
-        return self.d
+        """
+        Return a copy of the stored data as a multi-array.
+        If access without copying is required for performance reasons, use self.d at your own risk.
+        """
+        return self.d.copy()
         
     
     def use_existing(self, d, lons, lats, tm):
-        """Initialize with already existing data."""
-
+        """
+        Initialize with already existing data.
+        """
         self.d = d
         self.lons = lons
         self.lats = lats
@@ -40,8 +47,9 @@ class GeoField:
         
         
     def load(self, netcdf_file, var_name):
-        """Load GeoData structure from netCDF file."""
-
+        """
+        Load GeoData structure from netCDF file.
+        """
         d = Dataset(netcdf_file)
         v = d.variables[var_name]
         
@@ -69,10 +77,10 @@ class GeoField:
         
         
     def slice_months(self, months):
-        """Subselect only certain months, not super efficient but useable, since
-           upper bound on len(months) = 12.
-           Modification is in-place due to volume of data."""
-
+        """
+        Subselect only certain months, not super efficient but useable, since upper bound
+        on len(months) = 12. Modification is in-place due to volume of data.
+        """
         tm = self.tm
         ndx = filter(lambda i: date.fromordinal(int(tm[i])).month in months, range(len(tm)))
         
@@ -81,9 +89,10 @@ class GeoField:
         
 
     def slice_spatial(self, lons, lats):
-        """Slice longitude and/or lattitude.  None means don't modify dimension.
-           Both arguments are ranges [from, to], both limits are inclusive."""
-           
+        """
+        Slice longitude and/or latitude.  None means don't modify dimension.
+        Both arguments are ranges [from, to], both limits are inclusive.
+        """
         if lons != None:
             lon_ndx = np.nonzero(np.logical_and(self.lons >= lons[0], self.lons <= lons[1]))[0]
         else:
@@ -105,8 +114,9 @@ class GeoField:
         
 
     def transform_to_anomalies(self):
-        """Remove the yearly cycle from the time series."""
-        
+        """
+        Remove the yearly cycle from the time series.
+        """
         # check if data is monthly or daily
         d = self.d
         delta = self.tm[1] - self.tm[0]
@@ -125,4 +135,35 @@ class GeoField:
             raise "Unknown temporal sampling in geographical field."
 
         
+    def sample_temporal_bootstrap(self):
+        """
+        Return a temporal bootstrap sample.
+        """
+        # select samples at random
+        num_tm = len(self.tm)
+        ndx = sp.random.random_integers(0, num_tm - 1, size = (num_tm,))
         
+        # return a copy of the resampled dataset
+        return self.d[ndx, ...].copy()
+    
+    
+    def spatial_dims(self):
+        """
+        Return the spatial dimensions of the data.  Spatial dimensions are all dimensions
+        after the first one, which corresponds to time.
+        """
+        return self.d.shape[1:]
+    
+    
+    def reshape_flat_field(self, f):
+        """
+        Reshape a field that has been spatially flattened back into shape that
+        corresponds to the spatial dimensions of this field.  It is assumed that
+        f is a 2D array with axis 0 spatial and axis 1 temporal.  The matrix will
+        be transposed and the spatial dimension reshaped back to match the spatial
+        dimensions of the data in this field.
+        """
+        n = f.shape[1]
+        f = f.transpose()
+        new_shape = [n] + list(self.spatial_dims())
+        return f.reshape(new_shape)
