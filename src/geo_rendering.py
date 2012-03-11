@@ -1,11 +1,11 @@
 
 
 from mpl_toolkits.basemap import Basemap
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 
-def render_component(m, C, lats, lons, rmax, title = None):
+def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None):
     """
     Render a single component onto the current axes.  Lats/lons must
     be sorted and must correspond to the 2D component C.  The image
@@ -22,11 +22,41 @@ def render_component(m, C, lats, lons, rmax, title = None):
     f = m.transform_scalar(C, lons, lats, nx, ny)
     
     imgplt = m.imshow(f, alpha = 0.8)
-    imgplt.set_clim(-rmax, rmax)
+    if sym_clims:
+        imgplt.set_clim(-rmax, rmax)
+        
     plt.colorbar()
     
     if title != None:
         plt.title(title)
+        
+    return imgplt
+        
+        
+def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_name = None):
+    """
+    Render a single component on a plot.
+    """
+    m = Basemap(projection='mill',
+                llcrnrlat=min(lats), urcrnrlat=max(lats),
+                llcrnrlon=(min(lons)), urcrnrlon=max(lons),
+                resolution='c')
+    
+    rmax = max([np.max(C), np.max(-C)])
+    
+    if plt_name == None:
+        plt_name = 'Component'
+
+    # in case lats are not in ascending order, fix this
+    lat_ndx = np.argsort(lats)
+    lats_s = lats[lat_ndx]
+        
+    plt.figure(figsize = (20,8))
+    plt.subplot(1, 1, 1)
+    render_component(m, C[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name)
+    
+    if fname:
+        plt.savefig(fname)
     
 
 def render_component_triple(Cd, Cmn, Cmx, lats, lons, fname = None, plt_name = None):
