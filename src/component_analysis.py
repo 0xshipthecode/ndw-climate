@@ -62,7 +62,7 @@ def varimax(U, rtol = np.finfo(np.float32).eps, maxiter = 1000):
     ColNorms = np.zeros((1, m))
     
     dsum = 0.0
-    for i in range(maxiter):
+    for indx in range(maxiter):
         old_dsum = dsum
         np.sum(Ur**2, axis = 0, out = ColNorms[0,:])
         C = n * Ur**3
@@ -72,11 +72,11 @@ def varimax(U, rtol = np.finfo(np.float32).eps, maxiter = 1000):
         dsum = np.sum(d)
         np.dot(U, R, out = Ur)
         if abs(dsum - old_dsum) / dsum < rtol:
-            return Ur, R, i+1
+            break
         
     # flip signs of components, where max-abs in col is negative
     for i in range(m):
-        if max(Ur[:,i]) < abs(min(Ur[:,i])):
+        if np.amax(Ur[:,i]) < abs(np.amin(Ur[:,i])):
             Ur[:,i] *= -1.0
 
-    return Ur, R, maxiter
+    return Ur, R, indx

@@ -15,8 +15,8 @@ import cPickle
 #
 # Current simulation parameters
 #
-NUM_BOOTSTRAPS = 16
-NUM_COMPONENTS = 27
+NUM_BOOTSTRAPS = 4
+NUM_COMPONENTS = 20
 POOL_SIZE = None
 RECOMPUTE_MODEL = True
 
@@ -67,6 +67,7 @@ if __name__ == "__main__":
     gf.transform_to_anomalies()
     gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
     gf.slice_spatial(None, [20, 89])
+    gf.slice_months([12, 1, 2])
     
     # initialize a parallel pool
     pool = Pool(POOL_SIZE)
