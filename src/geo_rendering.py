@@ -59,7 +59,7 @@ def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_
         plt.savefig(fname)
     
 
-def render_component_triple(Cd, Cmn, Cmx, lats, lons, fname = None, plt_name = None):
+def render_component_triple(Cd, Cmn, Cmx, lats, lons, sym_clims = True, fname = None, plt_name = None):
     """
     Render a component triple, the component, its max and min deviation.  Everything is rendered
     with the same color range.
@@ -80,11 +80,11 @@ def render_component_triple(Cd, Cmn, Cmx, lats, lons, fname = None, plt_name = N
         
     plt.figure(figsize = (20,20))
     plt.subplot(3, 1, 1)
-    render_component(m, Cmn[lat_ndx, :], lats_s, lons, rmax, plt_name + ' - min')
+    render_component(m, Cmn[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - min')
     plt.subplot(3, 1, 2)
-    render_component(m, Cd[lat_ndx, :], lats_s, lons, rmax, plt_name + ' - data')
+    render_component(m, Cd[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - data')
     plt.subplot(3, 1, 3)
-    render_component(m, Cmx[lat_ndx, :], lats_s, lons, rmax, plt_name + ' - max')
+    render_component(m, Cmx[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - max')
     
     if fname:
         plt.savefig(fname)
