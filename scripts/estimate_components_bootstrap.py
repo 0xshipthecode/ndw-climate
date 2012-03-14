@@ -15,9 +15,9 @@ import cPickle
 #
 # Current simulation parameters
 #
-NUM_BOOTSTRAPS = 4
-NUM_COMPONENTS = 20
-POOL_SIZE = 2
+NUM_BOOTSTRAPS = 100
+NUM_COMPONENTS = 27
+POOL_SIZE = None
 RECOMPUTE_MODEL = True
 
 
@@ -25,9 +25,7 @@ def compute_bootstrap_sample_components(x):
     gf, Urd = x
     b = gf.sample_temporal_bootstrap()
     U, _, _ = pca_components(b)
-#    Ur, _, _ = varimax(U[:, :NUM_COMPONENTS] * s[np.newaxis, :NUM_COMPONENTS])
     Ur, _, _ = varimax(U[:, :NUM_COMPONENTS])
-#    Ur = Ur / np.std(Ur, axis = 0)
     
     # compute closeness of components
     C = np.corrcoef(Ur, Urd, rowvar = 0)
@@ -40,7 +38,7 @@ def compute_bootstrap_sample_components(x):
     for i in range(len(match)):
         m_i = match[i]
         perm[m_i[0]] = m_i[1]
-        Ur[m_i[1]] = - Ur[m_i[1]] if C[m_i[0], m_i[1]] < 0.0 else Ur[m_i[1]] 
+        Ur[:, m_i[1]] = -Ur[:, m_i[1]] if C[m_i[0], m_i[1]] < 0.0 else Ur[:, m_i[1]] 
         
     # reorder the bootstrap components according to the best matching 
     Ur = Ur[:, perm]
@@ -98,9 +96,8 @@ if __name__ == "__main__":
 
     num_comp = 0    
     for Urb in slam_list:
-        Urb = np.abs(Urb)
-        max_comp = np.maximum(max_comp, Urb)
-        min_comp = np.minimum(min_comp, Urb)
+        max_comp = np.maximum(max_comp, np.abs(Urb))
+        min_comp = np.minimum(min_comp, np.abs(Urb))
 
         num_comp += 1
         delta = Urb - mean_comp
@@ -117,9 +114,15 @@ if __name__ == "__main__":
     min_comp = gf.reshape_flat_field(min_comp)
     mean_comp = gf.reshape_flat_field(mean_comp)
     var_comp = gf.reshape_flat_field(var_comp)
+
+    cPickle.dump([Ud,Ur,max_comp,min_comp,mean_comp,var_comp], 'figs/bootstrap_results.bin')
     
 #    render_list_triples = [ (Ur[i, ...], min_comp[i, ...], max_comp[i, ...], gf.lats, gf.lons, 'figs/nhemi_comp%02d_varimax.png' % (i+1), 'Component %d' % (i+1)) for i in range(NUM_COMPONENTS)]
-    render_list_triples = [ (Ur[i, ...], mean_comp[i, ...], Ur[i, ...] / np.abs(var_comp[i, ...]) ** 0.5, gf.lats, gf.lons, False, 'figs/nhemi_comp%02d_varimax.png' % (i+1), 'Component %d' % (i+1)) for i in range(NUM_COMPONENTS)]
+    render_list_triples = [ (Ur[i, ...], mean_comp[i, ...], np.abs(var_comp[i, ...]) ** 0.5,
+                             gf.lats, gf.lons, False,
+                             'figs/nhemi_comp%02d_varimax.png' % (i+1),
+                             'Component %d' % (i+1)) for i in range(NUM_COMPONENTS) ]
+
     pool.map(render_triples_par, render_list_triples)
     print("Rendering components in parallel ...")
    
