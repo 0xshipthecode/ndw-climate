@@ -43,9 +43,9 @@ def pca_components(d):
     s *= 1.0 / (d.shape[1] - 1)
     
     # flip signs so that max(abs()) of each col is positive
-    for i in range(U.shape[1]):
-        if max(U[:,i]) < abs(min(U[:,i])):
-            U[:,i] *= -1.0
+#    for i in range(U.shape[1]):
+#        if max(U[:,i]) < abs(min(U[:,i])):
+#            U[:,i] *= -1.0
             
     return U, s, Vt
 

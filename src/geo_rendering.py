@@ -59,17 +59,19 @@ def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_
         plt.savefig(fname)
     
 
-def render_component_triple(Cd, Cmn, Cmx, lats, lons, sym_clims = True, fname = None, plt_name = None):
+def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fname = None, plt_name = None):
     """
-    Render a component triple, the component, its max and min deviation.  Everything is rendered
-    with the same color range.
+    Render a component triple, useful in some contexts.  The names of each subplot must be given as well
+    as the latitudes, longitudes, where the plots are to be shown.  Optionally, the color limits of all three
+    plots are forced to be equal and symmetric around zero (sym_clims).  If fname is not none, the plots are
+    saved to file, otherwise they remain in memory and can be shown at will.
     """
     m = Basemap(projection='mill',
                 llcrnrlat=min(lats), urcrnrlat=max(lats),
                 llcrnrlon=(min(lons)), urcrnrlon=max(lons),
                 resolution='c')
     
-    rmax = max([np.max(Cmx), np.max(-Cmx)])
+    rmax = max([np.max(C1), abs(np.min(C1)), np.max(C2), abs(np.min(C2)), np.max(C3), abs(np.min(C3))])
     
     if plt_name == None:
         plt_name = 'Component'
@@ -80,11 +82,11 @@ def render_component_triple(Cd, Cmn, Cmx, lats, lons, sym_clims = True, fname = 
         
     plt.figure(figsize = (20,20))
     plt.subplot(3, 1, 1)
-    render_component(m, Cmn[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - min')
+    render_component(m, C1[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - ' + names[0])
     plt.subplot(3, 1, 2)
-    render_component(m, Cd[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - data')
+    render_component(m, C2[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - ' + names[1])
     plt.subplot(3, 1, 3)
-    render_component(m, Cmx[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - max')
+    render_component(m, C3[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - ' + names[2])
     
     if fname:
         plt.savefig(fname)

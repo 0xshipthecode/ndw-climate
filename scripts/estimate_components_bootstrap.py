@@ -5,6 +5,8 @@ from geo_field import GeoField
 from multiprocessing import Pool
 from component_analysis import pca_eigvals, pca_components, varimax
 from geo_rendering import render_components, render_component_triple
+from spatial_model_generator import constructVAR, make_model_geofield
+
 from munkres import Munkres
 import os.path
 import sys
@@ -15,8 +17,8 @@ import cPickle
 #
 # Current simulation parameters
 #
-NUM_BOOTSTRAPS = 100
-NUM_COMPONENTS = 27
+NUM_BOOTSTRAPS = 1000
+NUM_COMPONENTS = 4
 POOL_SIZE = None
 RECOMPUTE_MODEL = True
 
@@ -28,8 +30,7 @@ def compute_bootstrap_sample_components(x):
     Ur, _, _ = varimax(U[:, :NUM_COMPONENTS])
     
     # compute closeness of components
-    C = np.corrcoef(Ur, Urd, rowvar = 0)
-    C = C[NUM_COMPONENTS:, :NUM_COMPONENTS]
+    C = np.dot(Ur.T, Urd)
     
     # find optimal matching of components
     m = Munkres()
@@ -52,20 +53,26 @@ def render_components_par(x):
 
 
 def render_triples_par(x):
-    Cd, Cmn, Cmx, lats, lons, clim, fname, pltname = x
-    render_component_triple(Cd, Cmn, Cmx, lats, lons, clim, fname, pltname)
+    render_component_triple(*x)
 
 if __name__ == "__main__":
 
     print("Bootstrap analysis of uncertainty of VARIMAX components 1.0")
     
     print("Loading data ...")
-    gf = GeoField()
-    gf.load("data/pres.mon.mean.nc", 'pres')
-    gf.transform_to_anomalies()
-    gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
-    gf.slice_spatial(None, [20, 89])
+#    gf = GeoField()
+#    gf.load("data/pres.mon.mean.nc", 'pres')
+#    gf.transform_to_anomalies()
+#    gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
+#    gf.slice_spatial(None, [20, 89])
 #    gf.slice_months([12, 1, 2])
+    
+    S = np.zeros(shape = (20, 50), dtype = np.int32)
+    S[10:18, 25:45] = 1
+    S[0:3, 6:12] = 2
+    v, Sr = constructVAR(S, [0.0, 0.001, 0.01], [-0.1, 0.1], [0.00, 0.00], [0.01, 0.01])
+    ts = v.simulate(768)
+    gf = make_model_geofield(S, ts)
     
     # initialize a parallel pool
     pool = Pool(POOL_SIZE)
@@ -73,7 +80,7 @@ if __name__ == "__main__":
     print("Analyzing data ...")
     
     # compute the eigenvalues and eigenvectors of the (spatial) covariance matrix 
-    Ud, sd, Vtd = pca_components(gf.data())[:NUM_COMPONENTS]
+    Ud, sd, Vtd = pca_components(gf.data())
     Ud = Ud[:, :NUM_COMPONENTS]
     Ur, _, its = varimax(Ud)
     
@@ -82,8 +89,8 @@ if __name__ == "__main__":
     # initialize maximal and minimal boostraps
     max_comp = np.abs(Ur.copy())
     min_comp = np.abs(Ur.copy())
-    mean_comp = Ur.copy()
-    var_comp = Ur.copy()
+    mean_comp = np.zeros_like(Ur)
+    var_comp = np.zeros_like(Ur)
     
     # generate and compute eigenvalues for 20000 surrogates
     t1 = datetime.now()
@@ -115,11 +122,12 @@ if __name__ == "__main__":
     mean_comp = gf.reshape_flat_field(mean_comp)
     var_comp = gf.reshape_flat_field(var_comp)
 
-    cPickle.dump([Ud,Ur,max_comp,min_comp,mean_comp,var_comp], 'figs/bootstrap_results.bin')
+    with open('results/bootstrap_results.bin', 'w') as f:
+        cPickle.dump([Ud,Ur,max_comp,min_comp,mean_comp,var_comp], f)
     
 #    render_list_triples = [ (Ur[i, ...], min_comp[i, ...], max_comp[i, ...], gf.lats, gf.lons, 'figs/nhemi_comp%02d_varimax.png' % (i+1), 'Component %d' % (i+1)) for i in range(NUM_COMPONENTS)]
-    render_list_triples = [ (Ur[i, ...], mean_comp[i, ...], np.abs(var_comp[i, ...]) ** 0.5,
-                             gf.lats, gf.lons, False,
+    render_list_triples = [ (Ur[i, ...], mean_comp[i, ...], mean_comp[i, ...] / (var_comp[i, ...] ** 0.5) * (NUM_BOOTSTRAPS ** 0.5),
+                             ['data', 'mean', 'T'], gf.lats, gf.lons, False,
                              'figs/nhemi_comp%02d_varimax.png' % (i+1),
                              'Component %d' % (i+1)) for i in range(NUM_COMPONENTS) ]
 

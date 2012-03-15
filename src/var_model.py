@@ -21,15 +21,31 @@ class VARModel:
     
     
     def __init__(self):
-        """Initialize as empty model."""
+        """
+        Initialize as empty model.
+        """
         self.A = None
         self.w = None
         self.U = None
+        
+    
+    def set_model(self, A, w, U):
+        """
+        Setup the model given the internal parameters.  Copies are made of the
+        passed parameters.
+        A - AR coefficient matrices appended in axis[1]
+        w - the intercept
+        U - the upper triangular cholesky factor of the noise covariance matrix
+        """
+        self.A = A.copy()
+        self.w = w.copy()
+        self.U = U.copy()
         
         
     def order(self):
         """Return model order."""
         return self.A.shape[1] if self.A != None else 0
+    
     
     def dimension(self):
         """Return model dimension."""
