@@ -43,19 +43,20 @@ def pca_components(d):
     s *= 1.0 / (d.shape[1] - 1)
     
     # flip signs so that max(abs()) of each col is positive
-#    for i in range(U.shape[1]):
-#        if max(U[:,i]) < abs(min(U[:,i])):
-#            U[:,i] *= -1.0
+    for i in range(U.shape[1]):
+        if max(U[:,i]) < abs(min(U[:,i])):
+            U[:,i] *= -1.0
+            Vt[i,:] *= -1.0
             
     return U, s, Vt
 
 
-def varimax(U, rtol = np.finfo(np.float32).eps, maxiter = 1000):
+def orthomax(U, rtol = np.finfo(np.float32).eps, gamma = 1.0, maxiter = 1000):
     """
     Rotate the matrix U using a varimax scheme.  Maximum no of rotation is 1000 by default.
     The rotation is in place (the matrix U is overwritten with the result).  For optimal performance,
     the matrix U should be contiguous in memory.  The implementation is based on MATLAB docs & code,
-    algortithm is due to DN Lawley and AE Maxwell.
+    algorithm is due to DN Lawley and AE Maxwell.
     """
     n,m = U.shape
     Ur = U.copy(order = 'C')
@@ -66,7 +67,8 @@ def varimax(U, rtol = np.finfo(np.float32).eps, maxiter = 1000):
         old_dsum = dsum
         np.sum(Ur**2, axis = 0, out = ColNorms[0,:])
         C = n * Ur**3
-        C -= Ur * ColNorms  # numpy will broadcast on rows
+        if gamma > 0.0:
+            C -= gamma * Ur * ColNorms  # numpy will broadcast on rows
         L, d, Mt = svd(np.dot(Ur.T, C), False, True, True)
         R = np.dot(L, Mt)
         dsum = np.sum(d)

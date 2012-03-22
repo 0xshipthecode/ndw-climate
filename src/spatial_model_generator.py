@@ -5,7 +5,7 @@ from geo_field import GeoField
 import scipy.linalg
 
 
-def constructVAR(S, cs, ar_rng, base_rng, nghb_rng):
+def constructVAR(S, cs, ar_rng, nghb_rng):
     """
     Based on a grid indicating which grid points are associated together
     in a cluster, the SMG constructs a VAR model that represents the spatial
@@ -25,18 +25,13 @@ def constructVAR(S, cs, ar_rng, base_rng, nghb_rng):
     
     # read the elements in C order (row by row)
     for i in range(N):
-        ir, ic = i // C, i % C
-        for j in range(N):
-            jr, jc = j // C, j % C
-            
-            if i == j:
-                A[i,j] = np.random.uniform(ar_rng[0], ar_rng[1])
-            elif Sr[i] > 0 and Sr[i] == Sr[j]:
-                A[i,j] = cs[Sr[i]]
-            elif abs(ir - jr) + abs(ic - jc) == 1:
-                A[i,j] = np.random.uniform(nghb_rng[0], nghb_rng[1])
-            else:
-                A[i,j] = np.random.uniform(base_rng[0], base_rng[1])
+        A[i,i] = np.random.uniform(ar_rng[0], ar_rng[1])
+        
+        if Sr[i] > 0:
+            blk_driver = np.nonzero(Sr == Sr[i])[0][0]
+            if i > blk_driver:
+                A[i, blk_driver] = cs[Sr[i]]
+#                A[i, i] -= cs[Sr[i]]
                 
     # check stability of process
     if np.any(np.abs(scipy.linalg.eig(A, right = False)) > 1.0):
@@ -47,8 +42,30 @@ def constructVAR(S, cs, ar_rng, base_rng, nghb_rng):
     var = VARModel()
     var.set_model(A, w, U)
     return var, Sr
-        
-        
+
+
+def set_neighbor_weights(A, C, cc):
+    N = A.shape[0]
+    # first set all neighbor correlations
+    for i in range(N):
+        ir, ic = i // C, i % C
+        for j in range(N):
+            jr, jc = j // C, j % C
+            if abs(ir - jr) + abs(ic - jc) == 1:
+                A[i,j] = cc
+                
+
+def get_neighbor_mask(N, C):
+    M = np.zeros(shape=(N,N), dtype = np.bool)
+    for i in range(N):
+        ir, ic = i // C, i % C
+        for j in range(N):
+            jr, jc = j // C, j % C
+            if abs(ir - jr) + abs(ic - jc) == 1:
+                M[i,j] = True
+    return M
+
+
 def make_model_geofield(S, ts):
     
     M,N = S.shape
