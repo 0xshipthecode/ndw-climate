@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy.linalg import svdvals, svd
+from munkres import Munkres
 
 
 def pca_eigvals(d):
@@ -23,10 +24,12 @@ def pca_eigvals(d):
 
 
 
-def pca_components(d):
+def pca_components_gf(d):
     """
-    Estimate the PCA components of a geo-field. d[0] must be time, other axes are considered spatial
-    and will be unrolled so that the PCA is performed on a 2D matrix.
+    Estimate the PCA components of a geo-field. d[0] must be time (observations).
+    Other axes are considered spatial and will be unrolled into one variable dimension.
+    The PCA is then performed on a 2D matrix with space (axis 1) as the variables and
+    time (axis 0) as the observations.
     """
     # reshape by combining all spatial dimensions
     d = np.reshape(d, (d.shape[0], np.prod(d.shape[1:])))
@@ -34,6 +37,16 @@ def pca_components(d):
     # we need the constructed single spatial dimension to be on axis 0
     d = d.transpose()
     
+    return pca_components(d)
+
+
+
+def pca_components(d):
+    """
+    Compute the standard PCA components assuming that axis0 are the variables (rows)
+    and axis 1 are the observations (columns).  The data is not copied and is
+    overwritten.
+    """
     # remove mean of each time series
     d = d - np.mean(d, axis = 1)[:, np.newaxis]
 
@@ -82,3 +95,59 @@ def orthomax(U, rtol = np.finfo(np.float32).eps, gamma = 1.0, maxiter = 1000):
             Ur[:,i] *= -1.0
 
     return Ur, R, indx
+
+
+
+def match_components_munkres(U1, U2):
+    """
+    Match the components from U1 to the components in U2 using the
+    Hungarian algorithm.  The function returns a sign_flip vector
+    which can be applied to U2 to switch the signs of the components to match
+    those in U1.  The sign_flip, if applied, must be applied to U2 BEFORE
+    the permutation!  The permutation which will bring U2 to match U1 is returned
+    as the first element in the tuple.  Then U1 === U2[:, perm].
+    
+    synopsis: perm, sf = match_components_munkres(U1, U2)
+        
+    """
+    NC = U2.shape[1]
+    
+    # compute closeness of components using the dot product
+    C = np.dot(U1.T, U2)
+
+    # normalize dot product matrix by sizes (to compare unit size vectors)    
+    U1s = 1.0 / np.sum(U1**2, axis = 0) ** 0.5
+    U2s = 1.0 / np.sum(U2**2, axis = 0) ** 0.5
+    C = U1s[:, np.newaxis] * C * U2s[np.newaxis, :]
+    
+    # find optimal matching of components
+    m = Munkres()
+    match = m.compute(1.0 - np.abs(C))
+    perm = np.zeros((NC,), dtype = np.int)
+    sign_flip = np.zeros((1, NC), dtype = np.int)
+    for i in range(len(match)):
+        m_i = match[i]
+        perm[m_i[0]] = m_i[1]
+        sign_flip[0, m_i[1]] = -1 if C[m_i[0], m_i[1]] < 0.0 else 1.0
+    
+    return perm, sign_flip 
+
+
+def matched_components(U1, U2):
+    """
+    Use the component matching method and return the matched components
+    directly.  Matching is done to optimize order and polarity of component.
+    The method also ensures the components have unit sizes.
+    """
+    C = U1.shape[1]
+    
+    # copy U, we will have to manipulate it
+    U2 = U2.copy()
+
+    # find the matching (even if there are more components in U)
+    perm, sf = match_components_munkres(U1, U2)
+    U2 *= sf
+    U2 = U2[:, perm[:C]]
+    
+    U2 /= np.sum(U2**2, axis = 0) ** 0.5
+    return U2
