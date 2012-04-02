@@ -244,3 +244,12 @@ class VARModel:
             
         # what remains are the residuals
         return res
+
+
+    def compute_covariance_matrix(self):
+        """
+        Compute the covariance matrix analytically.  This will only work for really sparse
+        processes, otherwise a lot of memory will be consumed.
+        """
+        pass
+        

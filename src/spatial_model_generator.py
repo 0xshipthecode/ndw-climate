@@ -32,6 +32,8 @@ def constructVAR(S, cs, ar_rng, nghb_rng):
             if i > blk_driver:
                 A[i, blk_driver] = cs[Sr[i]]
 #                A[i, i] -= cs[Sr[i]]
+
+    set_neighbor_weights(A, C, nghb_rng)
                 
     # check stability of process
     if np.any(np.abs(scipy.linalg.eig(A, right = False)) > 1.0):
@@ -52,7 +54,7 @@ def set_neighbor_weights(A, C, cc):
         for j in range(N):
             jr, jc = j // C, j % C
             if abs(ir - jr) + abs(ic - jc) == 1:
-                A[i,j] = cc
+                A[i,j] = np.random.uniform(cc[0], cc[1])
                 
 
 def get_neighbor_mask(N, C):

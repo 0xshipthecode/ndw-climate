@@ -134,7 +134,24 @@ class GeoField:
         else:
             raise "Unknown temporal sampling in geographical field."
 
-        
+
+    def normalize_monthly_variance(self):
+        """
+        Normalize the variance of monthly values.
+        """
+        # check if data is monthly
+        d = self.d
+        delta = self.tm[1] - self.tm[0]
+
+        if abs(delta - 30) < 3.0:
+            # monthly data
+            for i in range(12):
+                mn = np.std(d[i::12, :, :], axis = 0)
+                d[i::12, :, :] /= mn
+        else:
+            raise "Not monthly data!"
+
+    
     def sample_temporal_bootstrap(self):
         """
         Return a temporal bootstrap sample.

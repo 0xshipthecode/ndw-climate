@@ -8,7 +8,7 @@ from component_analysis import pca_components_gf, orthomax, match_components_mun
 from geo_rendering import render_components, render_component_triple
 from spatial_model_generator import constructVAR, make_model_geofield
 from spca_meng import extract_sparse_components
-from error_metrics import estimate_snr, mse_error
+from error_metrics import estimate_snr, mse_error, marpe_error
 
 import os.path
 import sys
@@ -50,7 +50,7 @@ NUM_BOOTSTRAPS = 100
 NUM_COMPONENTS = 3
 POOL_SIZE = None
 RECOMPUTE_MODEL = True
-GAMMA = 0.0
+GAMMA = 1.0
 ROTATE_NORMALIZED = True
 COMPONENT_ESTIMATOR = estimate_components_orthomax
 SPCA_SPARSITY = 200
@@ -71,8 +71,8 @@ def compute_bootstrap_sample_components(x):
     
     # match, flip sign and permute the discovered components    
     perm, sign_flip = match_components_munkres(Urd, Ur)
-    Ur *= sign_flip
     Ur = Ur[:, perm]
+    Ur *= sign_flip
     
     return Ur
 
@@ -186,6 +186,9 @@ if __name__ == "__main__":
 
     print mse_error(Uopt, Urm)
     print mse_error(Uopt, Umvm)
+    
+    print marpe_error(Uopt, Urm)
+    print marpe_error(Uopt, Umvm)
     
     plt.figure()
     for i in range(3):

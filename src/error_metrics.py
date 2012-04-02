@@ -32,3 +32,13 @@ def mse_error(S, U):
     mse = np.mean((U - S)**2, axis = 0)
         
     return mse
+
+
+def marpe_error(S, U):
+    """
+    Compute the mean absolute relative prediction error between the template and the computed
+    components.  S is the ideal form of the components (unit vectors).  Returns fractions.
+    """
+    mape = np.mean(np.abs(U - S), axis = 0)
+    
+    return mape / np.max(S, axis = 0)

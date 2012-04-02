@@ -23,7 +23,6 @@ def pca_eigvals(d):
     return 1.0 / (d.shape[1] - 1) * svdvals(d, True)**2
 
 
-
 def pca_components_gf(d):
     """
     Estimate the PCA components of a geo-field. d[0] must be time (observations).
@@ -38,7 +37,6 @@ def pca_components_gf(d):
     d = d.transpose()
     
     return pca_components(d)
-
 
 
 def pca_components(d):
@@ -97,15 +95,14 @@ def orthomax(U, rtol = np.finfo(np.float32).eps, gamma = 1.0, maxiter = 1000):
     return Ur, R, indx
 
 
-
 def match_components_munkres(U1, U2):
     """
     Match the components from U1 to the components in U2 using the
-    Hungarian algorithm.  The function returns a sign_flip vector
-    which can be applied to U2 to switch the signs of the components to match
-    those in U1.  The sign_flip, if applied, must be applied to U2 BEFORE
-    the permutation!  The permutation which will bring U2 to match U1 is returned
+    Hungarian algorithm.  The permutation which will bring U2 to match U1 is returned
     as the first element in the tuple.  Then U1 === U2[:, perm].
+    The function also returns a sign_flip vector which can be applied to U2
+    to switch the signs of the components to match those in U1.  The sign_flip,
+    if applied, must be applied to U2 after the permutation!
     
     synopsis: perm, sf = match_components_munkres(U1, U2)
         
@@ -128,7 +125,7 @@ def match_components_munkres(U1, U2):
     for i in range(len(match)):
         m_i = match[i]
         perm[m_i[0]] = m_i[1]
-        sign_flip[0, m_i[1]] = -1 if C[m_i[0], m_i[1]] < 0.0 else 1.0
+        sign_flip[0, m_i[0]] = -1 if C[m_i[0], m_i[1]] < 0.0 else 1.0
     
     return perm, sign_flip 
 
