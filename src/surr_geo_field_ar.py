@@ -127,10 +127,11 @@ class SurrGeoFieldAR(GeoField):
 
 
     def construct_surrogate_with_noise(self):
-        """Construct a new surrogate time series.  The construction is not done in parallel as
-           the entire surrogate generation and processing loop will be split into independent tasks.
-           The AR processes will be fed noise according to the noise covariance matrix.  100 samples
-           will be used to spin-up the models.
+        """
+        Construct a new surrogate time series.  The construction is not done in parallel as
+        the entire surrogate generation and processing loop will be split into independent tasks.
+        The AR processes will be fed noise according to the noise covariance matrix.  100 samples
+        will be used to spin-up the models.
         """
         
         num_lats = len(self.lats)
@@ -143,6 +144,19 @@ class SurrGeoFieldAR(GeoField):
         for i in range(num_lats):
             for j in range(num_lons):
                 self.sd[:, i, j] = self.model_grid[i, j].simulate(num_tm)[:,0]
+
+
+    def construct_white_noise_surrogates(self):
+        """
+        Construct white-noise (shuffling) surrogates.
+        """
+        num_lats = len(self.lats)
+        num_lons = len(self.lons)
+        self.sd = np.zeros_like(self.d)
+        
+        for i in range(num_lats):
+            for j in range(num_lons):
+                self.sd[:, i, j] = np.random.permutation(self.d[:, i, j])
 
     
     def model_orders(self):
