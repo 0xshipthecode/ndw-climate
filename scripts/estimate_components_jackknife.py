@@ -2,7 +2,7 @@ from datetime import date, datetime
 from geo_field import GeoField
 from multiprocessing import Pool
 from component_analysis import orthomax, pca_components_gf
-from geo_rendering import render_component_triple
+from geo_rendering import render_component_set
 from munkres import Munkres
 from spatial_model_generator import constructVAR, make_model_geofield
 
@@ -49,8 +49,8 @@ def compute_lno_sample_components(x):
     return Ur
 
 
-def render_triples_par(x):
-    render_component_triple(*x)
+def render_set_par(x):
+    render_component_set(*x)
 
 
 # load up the monthly SLP geo-field
@@ -59,7 +59,8 @@ gf.load("data/pres.mon.mean.nc", 'pres')
 gf.transform_to_anomalies()
 gf.normalize_monthly_variance()
 gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))    # years 1948-2012
-gf.slice_spatial(None, [20, 87])                           # northern hemisphere, extratropical
+#gf.slice_spatial(None, [20, 87])                           # northern hemisphere, extratropical
+gf.slice_spatial(None, [-88, 88])
 #gf.slice_months([12, 1, 2])
 
 #S = np.zeros(shape = (5, 10), dtype = np.int32)
@@ -81,8 +82,8 @@ print("Finished after %d iterations." % its)
 
 t_start = datetime.now()
 
-#LNO_COUNT = len(gf.tm) // LNO_PAR
-LNO_COUNT = 8
+LNO_COUNT = len(gf.tm) // LNO_PAR
+#LNO_COUNT = 4
 print("Running leave one out analysis [%d samples] at %s" % (LNO_COUNT, str(t_start)))
 
 # initialize maximal and minimal boostraps
@@ -159,24 +160,23 @@ with open('results/lno05_results.bin', 'w') as f:
                   'mean' : mean_comp, 'var' : var_comp}, f)
 
 t_start = datetime.now()
-print("Rendering components in parallel at [%s] ..." % str(t_start))
-render_list_triples = [ (Ur_gf[i, ...], min_comp[i, ...], max_comp[i, ...], 
-                        ['data', 'min', 'max'], 
-                        gf.lats, gf.lons, True, 'figs/nhemi_comp%02d_varimax_rough.png' % (i+1),
-                        'Component %d' % (i+1)) for i in range(NUM_COMPONENTS)]
+#print("Rendering components in parallel at [%s] ..." % str(t_start))
+#render_list_triples = [ (Ur_gf[i, ...], min_comp[i, ...], max_comp[i, ...], 
+#                        ['data', 'min', 'max'], 
+#                        gf.lats, gf.lons, True, 'figs/nhemi_comp%02d_varimax_rough.png' % (i+1),
+#                        'Component %d' % (i+1)) for i in range(NUM_COMPONENTS)]
+#
+#pool.map(render_triples_par, render_list_triples)
+#
+#print("DONE after [%s]." % (datetime.now() - t_start))
 
-pool.map(render_triples_par, render_list_triples)
 
-print("DONE after [%s]." % (datetime.now() - t_start))
+render_list = [ ([ mean_comp[i, ...], Ur_gf[i, ...], mean_comp[i, ...] / (var_comp[i,...] ** 0.5 + 0.01)], 
+                [ 'mean', 'data', 'T'],
+                gf.lats, gf.lons, False, 'figs/nhemi_comp%02d_varimax_mn.png' % (i+1),
+                'Component %d' % (i+1)) for i in range(NUM_COMPONENTS)]
 
-
-render_list_triples = [ (mean_comp[i, ...], Ur_gf[i, ...], 
-                        mean_comp[i, ...] / (var_comp[i,...] ** 0.5 + 0.01) * (LNO_COUNT ** 0.5), 
-                        [ 'mean', 'data', 'T'],
-                        gf.lats, gf.lons, False, 'figs/nhemi_comp%02d_varimax_mn.png' % (i+1),
-                        'Component %d' % (i+1)) for i in range(NUM_COMPONENTS)]
-
-pool.map(render_triples_par, render_list_triples)
+map(render_set_par, render_list)
 
 print("DONE after [%s]." % (datetime.now() - t_start))
 

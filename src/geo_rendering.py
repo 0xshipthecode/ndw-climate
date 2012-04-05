@@ -3,6 +3,7 @@
 from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits import basemap
 
 
 def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None):
@@ -13,7 +14,7 @@ def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None):
     a title is set optionally.
     """
     m.drawcoastlines()
-    m.etopo(scale = 0.2)
+#    m.etopo(scale = 0.2)
     m.drawparallels(np.arange(-90.,91.,30.))
     m.drawmeridians(np.arange(0.,361.,60.))
     
@@ -93,6 +94,58 @@ def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fna
         plt.close()
     else:
         return f
+
+
+def render_component_set(Comps, names, lats, lons, sym_clims = True, fname = None, plt_name = None):
+    """
+    Render a component set.  Each component is either 
+      - a 2D ndarray with layout corresponding to lats/lons and is plotted using Basemap
+      - a tuple with the first element being x-values and the second element being y-values, plotted
+        using standard plot
+    If fname is not None, the plot is saved to file, then cleared.
+    """
+    m = Basemap(projection='mill',
+                llcrnrlat=min(lats), urcrnrlat=max(lats),
+                llcrnrlon=(min(lons)), urcrnrlon=max(lons),
+                resolution='c')
+    
+    P = len(Comps)
+    
+    # find max/min over all components
+    rmax = max([max(np.max(Ci), abs(np.min(Ci))) for Ci in Comps if type(Ci) == np.ndarray])
+    
+    # fill in "default" name
+    if plt_name == None:
+        plt_name = 'Component'
+
+    # in case lats are not in ascending order, fix this
+    lat_ndx = np.argsort(lats)
+    lats_s = lats[lat_ndx]
+    
+    # each figure is 6 x 3, how do we arange them?
+    cols = int(P**0.5 + 1)
+    rows = (P + cols - 1) // cols
+        
+    f = plt.figure(figsize = (cols * 6, rows * 3))
+    for i in range(P):
+        plt.subplot(rows, cols, i+1)
+        if type(Comps[i]) == np.ndarray:
+            Ci = Comps[i]
+            Ci, lons_s = basemap.shiftgrid(180, Ci, lons)
+            render_component(m, Ci[lat_ndx, :], lats_s, lons_s - 360,
+                             rmax, sym_clims, plt_name + ' - ' + names[i])
+        else:
+            # it's a 1D plot (time series)
+            x, y = Comps[i]
+            plt.plot(x, y, 'bo-')
+            plt.title(plt_name + ' - ' + names[i])
+    
+    if fname:
+        plt.savefig(fname)
+        plt.close()
+    else:
+        return f
+
 
 
 def render_components(C, lats, lons, fname_tmpl = None, ndx = None):
