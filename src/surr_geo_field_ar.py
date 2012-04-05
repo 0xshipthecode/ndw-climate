@@ -157,6 +157,27 @@ class SurrGeoFieldAR(GeoField):
         for i in range(num_lats):
             for j in range(num_lons):
                 self.sd[:, i, j] = np.random.permutation(self.d[:, i, j])
+                
+                
+    def construct_fourier1_surrogates(self):
+        """
+        Construct Fourier type-1 surrogates (independent realizations in each
+        time series).
+        """
+        xf = np.fft.rfft(self.d, axis = 0)
+
+        # generate uniformely distributed
+        angle = np.random.uniform(0, 2 * np.pi, xf.shape)
+
+        # for 0 rotation for constant elements
+        angle[0, :] = 0
+
+        # generate a copy and rotate randomly
+        cxf = xf * np.exp(complex(0,1) * angle)
+
+        # inverse real FFT
+        self.sd = np.fft.irfft(cxf, axis = 0)
+        
 
     
     def model_orders(self):

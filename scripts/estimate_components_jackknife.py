@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from geo_field import GeoField
 from multiprocessing import Pool
-from component_analysis import pca_components, varimax
+from component_analysis import orthomax, pca_components_gf
 from geo_rendering import render_component_triple
 from munkres import Munkres
 from spatial_model_generator import constructVAR, make_model_geofield
@@ -27,8 +27,8 @@ def compute_lno_sample_components(x):
     gf, Urd, i, j = x
     b = gf.data()
     b = np.vstack([b[:i,...], b[j:,...]])
-    U, _, _ = pca_components(b)
-    Ur, _, _ = varimax(U[:, :NUM_COMPONENTS])
+    U, _, _ = pca_components_gf(b)
+    Ur, _, _ = orthomax(U[:, :NUM_COMPONENTS])
     
     # compute closeness of components
     C = np.dot(Ur.T, Urd)
@@ -54,33 +54,35 @@ def render_triples_par(x):
 
 
 # load up the monthly SLP geo-field
-#gf = GeoField()
-#gf.load("data/pres.mon.mean.nc", 'pres')
-#gf.transform_to_anomalies()
-#gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))    # years 1948-2012
-#gf.slice_spatial(None, [20, 87])                           # northern hemisphere, extratropical
-##gf.slice_months([12, 1, 2])
+gf = GeoField()
+gf.load("data/pres.mon.mean.nc", 'pres')
+gf.transform_to_anomalies()
+gf.normalize_monthly_variance()
+gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))    # years 1948-2012
+gf.slice_spatial(None, [20, 87])                           # northern hemisphere, extratropical
+#gf.slice_months([12, 1, 2])
 
-S = np.zeros(shape = (5, 10), dtype = np.int32)
-S[1:4, 0:2] = 1
-S[0:3, 6:9] = 2
-v, Sr = constructVAR(S, [0.0, 0.191, 0.120], [-0.1, 0.1], [0.00, 0.00], [0.01, 0.01])
-ts = v.simulate(768)
-gf = make_model_geofield(S, ts)
+#S = np.zeros(shape = (5, 10), dtype = np.int32)
+#S[1:4, 0:2] = 1
+#S[0:3, 6:9] = 2
+#v, Sr = constructVAR(S, [0.0, 0.191, 0.120], [-0.1, 0.1], [0.00, 0.00], [0.01, 0.01])
+#ts = v.simulate(768)
+#gf = make_model_geofield(S, ts)
 
 
 # initialize a parallel pool
 pool = Pool(POOL_SIZE)
 
 # compute components for data
-Ud, sd, Vtd = pca_components(gf.data())
+Ud, sd, Vtd = pca_components_gf(gf.data())
 Ud = Ud[:, :NUM_COMPONENTS]
-Ur, _, its = varimax(Ud)
+Ur, _, its = orthomax(Ud)
 print("Finished after %d iterations." % its)
 
 t_start = datetime.now()
 
-LNO_COUNT = len(gf.tm) // LNO_PAR
+#LNO_COUNT = len(gf.tm) // LNO_PAR
+LNO_COUNT = 8
 print("Running leave one out analysis [%d samples] at %s" % (LNO_COUNT, str(t_start)))
 
 # initialize maximal and minimal boostraps

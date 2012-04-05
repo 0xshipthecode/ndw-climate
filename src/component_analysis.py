@@ -5,7 +5,7 @@ from scipy.linalg import svdvals, svd
 from munkres import Munkres
 
 
-def pca_eigvals(d):
+def pca_eigvals_gf(d):
     """
     Compute the PCA of a geo-field that will be unrolled into one dimension.
     axis[0] must be time, other axes are considered spatial and will be unrolled
@@ -16,8 +16,16 @@ def pca_eigvals(d):
     
     # we need the constructed single spatial dimension to be on axis 0
     d = d.transpose()
-    
-    # remove mean of each time series
+
+    return pca_eigvals(d)
+
+
+def pca_eigvals(d):
+    """
+    Compute the eigenvalues of the covariance matrix of the data d.  The covariance
+    matrix is computed as d*d^T.
+    """
+    # remove mean of each row
     d = d - np.mean(d, axis = 1)[:, np.newaxis]
     
     return 1.0 / (d.shape[1] - 1) * svdvals(d, True)**2

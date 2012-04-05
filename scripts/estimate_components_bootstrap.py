@@ -45,14 +45,13 @@ def estimate_components_meng(d):
 # Current simulation parameters
 #
 NUM_BOOTSTRAPS = 1000
-NUM_COMPONENTS = 43
+NUM_COMPONENTS = 6
 POOL_SIZE = None
 RECOMPUTE_MODEL = True
 GAMMA = 1.0
 ROTATE_NORMALIZED = True
 COMPONENT_ESTIMATOR = estimate_components_orthomax
 SPCA_SPARSITY = 200
-
 
 
 def compute_bootstrap_sample_components(x):
@@ -97,32 +96,32 @@ if __name__ == "__main__":
 
     print("Bootstrap analysis of uncertainty of VARIMAX components 1.0")
     
-    print("Loading data ...")
-    gf = GeoField()
-    gf.load("data/pres.mon.mean.nc", 'pres')
-    gf.transform_to_anomalies()
-    gf.normalize_monthly_variance()
-    gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
-    gf.slice_spatial(None, [20, 89])
+#    print("Loading data ...")
+#    gf = GeoField()
+#    gf.load("data/pres.mon.mean.nc", 'pres')
+#    gf.transform_to_anomalies()
+#    gf.normalize_monthly_variance()
+#    gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
+#    gf.slice_spatial(None, [20, 89])
 #    gf.slice_months([12, 1, 2])
 
     # construct a test system    
-#    S = np.zeros(shape = (20, 50), dtype = np.int32)
-#    S[10:18, 25:45] = 1
-#    S[0:3, 6:12] = 2
-#    S[8:15, 2:12] = 3
-#    v, Sr = constructVAR(S, [0.0, 0.4, 0.8, 0.7], [-0.5, 0.5], [0.0, 0.0])
-##    v, Sr = constructVAR(S, [0.0, 0.001, 0.01], [-0.1, 0.1], [0.00, 0.00], [0.01, 0.01])
-#    ts = v.simulate(200)
-#    gf = make_model_geofield(S, ts)
+    S = np.zeros(shape = (20, 50), dtype = np.int32)
+    S[10:18, 25:45] = 1
+    S[0:3, 6:12] = 2
+    S[8:15, 2:12] = 3
+    v, Sr = constructVAR(S, [0.0, 0.4, 0.8, 0.7], [-0.5, 0.5], [0.0, 0.0])
+#    v, Sr = constructVAR(S, [0.0, 0.001, 0.01], [-0.1, 0.1], [0.00, 0.00], [0.01, 0.01])
+    ts = v.simulate(200)
+    gf = make_model_geofield(S, ts)
     
 #    # construct "components" from the structural matrix
-#    Uopt = np.zeros((len(Sr), np.amax(Sr)))   
-#    for i in range(Uopt.shape[1]):
-#        Uopt[:,i] = np.where(Sr == (i+1), 1.0, 0.0)
-#        # remove the first element (it's the driver which is not included in the optimal component)
-#        Uopt[np.nonzero(Uopt[:,i])[0][0],i] = 0.0
-#        Uopt[:,i] /= np.sum(Uopt[:,i]**2) ** 0.5
+    Uopt = np.zeros((len(Sr), np.amax(Sr)))   
+    for i in range(Uopt.shape[1]):
+        Uopt[:,i] = np.where(Sr == (i+1), 1.0, 0.0)
+        # remove the first element (it's the driver which is not included in the optimal component)
+        Uopt[np.nonzero(Uopt[:,i])[0][0],i] = 0.0
+        Uopt[:,i] /= np.sum(Uopt[:,i]**2) ** 0.5
 
     # initialize a parallel pool
     pool = Pool(POOL_SIZE)
@@ -160,6 +159,7 @@ if __name__ == "__main__":
         max_comp = np.maximum(max_comp, np.abs(Urb))
         min_comp = np.minimum(min_comp, np.abs(Urb))
 
+        # numerically robust computation of mean
         num_comp += 1
         delta = Urb - mean_comp
         mean_comp += delta / num_comp
@@ -174,26 +174,34 @@ if __name__ == "__main__":
     # how do we now estimate the SNRs?
     # a. from data
     # b. from bootstrap means and stdevs -> T-values
-#    Urm = matched_components(Uopt, Ur)
+    Urm = matched_components(Uopt, Ur)
 #    Umvm = matched_components(Uopt, mean_comp / (var_comp ** 0.5))
-#    
-#    print estimate_snr(Uopt, Urm)
-#    print estimate_snr(Uopt, Umvm)
-#
-#    print mse_error(Uopt, Urm)
-#    print mse_error(Uopt, Umvm)
-#    
-#    print marpe_error(Uopt, Urm)
-#    print marpe_error(Uopt, Umvm)
-#    
-#    plt.figure()
-#    for i in range(3):
-#        plt.subplot(310+i+1)
-#        plt.plot(Uopt[:,i], 'r-')
-#        plt.plot(Umvm[:,i], 'b-')
-#        plt.title('Component %d' % i)
-#    plt.show()    
+    Umvm = matched_components(Uopt, mean_comp)
     
+    print estimate_snr(Uopt, Urm)
+    print estimate_snr(Uopt, Umvm)
+
+    print mse_error(Uopt, Urm)
+    print mse_error(Uopt, Umvm)
+    
+    print marpe_error(Uopt, Urm)
+    print marpe_error(Uopt, Umvm)
+    
+    plt.figure(figsize = (12, 6))
+    for i in range(3):
+
+        plt.subplot(320+i*2+1)
+        plt.plot(Uopt[:,i], 'r-')
+        plt.plot(Umvm[:,i], 'b-')
+        plt.plot(np.ones((Uopt.shape[0],1)) * (1.0 / Uopt.shape[0]**0.5), 'g-')
+        plt.title('Component %d [bootstrap mean]' % i)
+    
+        plt.subplot(320+i*2+2)
+        plt.plot(Uopt[:,i], 'r-')
+        plt.plot(Urm[:,i], 'b-')
+        plt.plot(np.ones((Uopt.shape[0],1)) * (1.0 / Uopt.shape[0]**0.5), 'g-')
+        plt.title('Component %d [data]' % i)
+
     BUr = 1.0 / np.sum(Ur**2, axis = 0) ** 0.5
     Bmc = 1.0 / np.sum(mean_comp**2, axis = 0) ** 0.5
     

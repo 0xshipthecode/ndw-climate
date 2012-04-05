@@ -26,8 +26,9 @@ RECOMPUTE_MODEL = True
 
 def compute_surrogate_cov_eigvals(x):
     sd, U = x
-    sd.construct_surrogate_with_noise()
+#    sd.construct_surrogate_with_noise()
 #    sd.construct_white_noise_surrogates()
+    sd.construct_fourier1_surrogates()
     
     Ur, sr, _ = pca_components_gf(sd.surr_data())
     
@@ -36,20 +37,20 @@ def compute_surrogate_cov_eigvals(x):
 #    Ur *= sf
     
 #    return sr[perm[:NUM_EIGS]]
-    return sr[:NUM_EIGS]
+    return sr[:NUM_EIGS], np.amax(np.abs(Ur[:, :NUM_EIGS]), axis = 0)
 
 
 if __name__ == "__main__":
 
     print("Estimate PCA components script version 1.0")
     
-    print("Loading data ...")
-    gf = GeoField()
-    gf.load("data/pres.mon.mean.nc", 'pres')
-    gf.transform_to_anomalies()
-    gf.normalize_monthly_variance()
-    gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
-    gf.slice_spatial(None, [20, 89])
+#    print("Loading data ...")
+#    gf = GeoField()
+#    gf.load("data/pres.mon.mean.nc", 'pres')
+#    gf.transform_to_anomalies()
+#    gf.normalize_monthly_variance()
+#    gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
+##    gf.slice_spatial(None, [20, 89])
 #    gf.slice_spatial(None, [-88, 88])
 
 #    S = np.zeros(shape = (5, 10), dtype = np.int32)
@@ -59,13 +60,13 @@ if __name__ == "__main__":
 #    ts = v.simulate(768)
 #    d = make_model_geofield(S, ts)
     
-#    S = np.zeros(shape = (20, 50), dtype = np.int32)
-#    S[10:18, 25:45] = 1
-#    S[0:3, 6:12] = 2
-#    S[8:15, 2:12] = 3
-#    v, Sr = constructVAR(S, [0.0, 0.6, 0.9, 0.7], [0.3, 0.5], [0.0, 0.0])
-#    ts = v.simulate(200)
-#    gf = make_model_geofield(S, ts)
+    S = np.zeros(shape = (20, 50), dtype = np.int32)
+    S[10:18, 25:45] = 1
+    S[0:3, 6:12] = 2
+    S[8:15, 2:12] = 3
+    v, Sr = constructVAR(S, [0.0, 0.6, 0.9, 0.7], [0.3, 0.5], [0.0, 0.0])
+    ts = v.simulate(200)
+    gf = make_model_geofield(S, ts)
 
 #    plt.figure()
 #    plt.subplot(1,2,1)
@@ -90,6 +91,7 @@ if __name__ == "__main__":
     sd.copy_field(gf)
     sd.prepare_surrogates(pool)
     slam = np.zeros((NUM_SURR, NUM_EIGS))
+    maxU = np.zeros((NUM_SURR, NUM_EIGS))
     
     # generate and compute eigenvalues for 20000 surrogates
     t1 = datetime.now()
@@ -102,7 +104,9 @@ if __name__ == "__main__":
     
     # rearrange into numpy array (can I use vstack for this?)
     for i in range(len(slam_list)):
-        slam[i, :] = slam_list[i]
+        slam[i, :], maxU[i, :] = slam_list[i]
+        
+    maxU.sort(axis = 0)
         
     print("Saving computed spectra ...")
                 
@@ -113,6 +117,13 @@ if __name__ == "__main__":
     plt.figure()
     plt.plot(np.arange(NUM_EIGS) + 1, dlam, 'ro-')
     plt.errorbar(np.arange(NUM_EIGS) + 1, np.mean(slam, axis = 0), np.std(slam, axis = 0) * 3, fmt = 'g-')
-    plt.show()
     
+    plt.figure()
+    plt.errorbar(np.arange(NUM_EIGS) + 1, np.mean(maxU, axis = 0), np.std(maxU, axis = 0) * 3, fmt = 'g-')
+    plt.plot(np.arange(NUM_EIGS) + 1, np.amax(maxU, axis = 0), 'r-')
+    plt.plot(np.arange(NUM_EIGS) + 1, np.amin(maxU, axis = 0), 'r-')
+    plt.plot(np.arange(NUM_EIGS) + 1, maxU[94, :], 'bo-', linewidth = 2)
+    plt.plot(np.arange(NUM_EIGS) + 1, np.amax(np.abs(Ud), axis = 0), 'kx-', linewidth = 2)
+
+    plt.show()
     print("DONE.")

@@ -80,7 +80,7 @@ def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fna
     lat_ndx = np.argsort(lats)
     lats_s = lats[lat_ndx]
         
-    plt.figure(figsize = (20,20))
+    f = plt.figure(figsize = (20,20))
     plt.subplot(3, 1, 1)
     render_component(m, C1[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - ' + names[0])
     plt.subplot(3, 1, 2)
@@ -90,6 +90,9 @@ def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fna
     
     if fname:
         plt.savefig(fname)
+        plt.close()
+    else:
+        return f
 
 
 def render_components(C, lats, lons, fname_tmpl = None, ndx = None):
