@@ -151,8 +151,8 @@ def matched_components(U1, U2):
 
     # find the matching (even if there are more components in U)
     perm, sf = match_components_munkres(U1, U2)
-    U2 *= sf
     U2 = U2[:, perm[:C]]
+    U2 *= sf[:C]
     
     U2 /= np.sum(U2**2, axis = 0) ** 0.5
     return U2

@@ -66,7 +66,7 @@ def compute_bootstrap_sample_components(x):
     # match, flip sign and permute the discovered components    
     perm, sign_flip = match_components_munkres(Urd, Ur)
     Ur = Ur[:, perm]
-    Ur *= sign_flip
+    Ur *= sign_flip[:Ur.shape[1]]
     
     return Ur
 
