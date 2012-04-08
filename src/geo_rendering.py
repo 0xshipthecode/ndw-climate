@@ -15,9 +15,9 @@ def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None):
     """
     m.drawcoastlines()
 #    m.etopo(scale = 0.2)
-    m.drawparallels(np.arange(-90.,91.,30.))
-    m.drawmeridians(np.arange(0.,361.,60.))
-    
+    m.drawparallels(np.arange(-90.,91.,30.), labels=[1,0,0,1])
+    m.drawmeridians(np.arange(-120., 121.,60.), labels=[1,0,0,1])
+   
     nx = int((m.xmax-m.xmin) / 20000) + 1
     ny = int((m.ymax-m.ymin) / 20000) + 1
     f = m.transform_scalar(C, lons, lats, nx, ny)
@@ -38,11 +38,6 @@ def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_
     """
     Render a single component on a plot.
     """
-    m = Basemap(projection='mill',
-                llcrnrlat=min(lats), urcrnrlat=max(lats),
-                llcrnrlon=(min(lons)), urcrnrlon=max(lons),
-                resolution='c')
-    
     rmax = max([np.max(C), np.max(-C)])
     
     if plt_name == None:
@@ -51,10 +46,20 @@ def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_
     # in case lats are not in ascending order, fix this
     lat_ndx = np.argsort(lats)
     lats_s = lats[lat_ndx]
+    
+    # shift the grid by 180 degs and remap lons to -180, 180
+    Cout, lons_s = basemap.shiftgrid(180, C, lons)
+    lons_s -= 360
         
+    # construct the projection from the remapped data
+    m = Basemap(projection='mill',
+                llcrnrlat=lats_s[0], urcrnrlat=lats_s[-1],
+                llcrnrlon=lons_s[0], urcrnrlon=lons_s[-1],
+                resolution='c')
+
     plt.figure(figsize = (20,8))
     plt.subplot(1, 1, 1)
-    render_component(m, C[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name)
+    render_component(m, Cout[lat_ndx, :], lats_s, lons_s, rmax, sym_clims, plt_name)
     
     if fname:
         plt.savefig(fname)
