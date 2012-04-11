@@ -6,7 +6,7 @@ import numpy as np
 from mpl_toolkits import basemap
 
 
-def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None):
+def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None, cmap = None):
     """
     Render a single component onto the current axes.  Lats/lons must
     be sorted and must correspond to the 2D component C.  The image
@@ -22,11 +22,11 @@ def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None):
     ny = int((m.ymax-m.ymin) / 20000) + 1
     f = m.transform_scalar(C, lons, lats, nx, ny)
     
-    imgplt = m.imshow(f, alpha = 0.8)
+    imgplt = m.imshow(f, alpha = 0.8, cmap = cmap)
     if sym_clims:
         imgplt.set_clim(-rmax, rmax)
         
-    plt.colorbar()
+    plt.colorbar(fraction = 0.07, shrink = 0.7, aspect = 15)
     
     if title != None:
         plt.title(title)
@@ -34,7 +34,7 @@ def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None):
     return imgplt
         
         
-def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_name = None):
+def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_name = None, cmap = None):
     """
     Render a single component on a plot.
     """
@@ -57,9 +57,10 @@ def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_
                 llcrnrlon=lons_s[0], urcrnrlon=lons_s[-1],
                 resolution='c')
 
-    plt.figure(figsize = (20,8))
+    plt.figure()
+    plt.subplots_adjust(left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
     plt.subplot(1, 1, 1)
-    render_component(m, Cout[lat_ndx, :], lats_s, lons_s, rmax, sym_clims, plt_name)
+    render_component(m, Cout[lat_ndx, :], lats_s, lons_s, rmax, sym_clims, plt_name, cmap)
     
     if fname:
         plt.savefig(fname)
@@ -72,11 +73,6 @@ def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fna
     plots are forced to be equal and symmetric around zero (sym_clims).  If fname is not none, the plots are
     saved to file, otherwise they remain in memory and can be shown at will.
     """
-    m = Basemap(projection='mill',
-                llcrnrlat=min(lats), urcrnrlat=max(lats),
-                llcrnrlon=(min(lons)), urcrnrlon=max(lons),
-                resolution='c')
-    
     rmax = max([np.max(C1), abs(np.min(C1)), np.max(C2), abs(np.min(C2)), np.max(C3), abs(np.min(C3))])
     
     if plt_name == None:
@@ -86,6 +82,11 @@ def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fna
     lat_ndx = np.argsort(lats)
     lats_s = lats[lat_ndx]
         
+    m = Basemap(projection='mill',
+                llcrnrlat=lats_s[0], urcrnrlat=lats_s[-1],
+                llcrnrlon=lons[0], urcrnrlon=lons[-1],
+                resolution='c')
+
     f = plt.figure(figsize = (20,20))
     plt.subplot(3, 1, 1)
     render_component(m, C1[lat_ndx, :], lats_s, lons, rmax, sym_clims, plt_name + ' - ' + names[0])
@@ -109,11 +110,6 @@ def render_component_set(Comps, names, lats, lons, sym_clims = True, fname = Non
         using standard plot
     If fname is not None, the plot is saved to file, then cleared.
     """
-    m = Basemap(projection='mill',
-                llcrnrlat=min(lats), urcrnrlat=max(lats),
-                llcrnrlon=(min(lons)), urcrnrlon=max(lons),
-                resolution='c')
-    
     P = len(Comps)
     
     # find max/min over all components
@@ -128,16 +124,22 @@ def render_component_set(Comps, names, lats, lons, sym_clims = True, fname = Non
     lats_s = lats[lat_ndx]
     
     # each figure is 6 x 3, how do we arange them?
-    cols = int(P**0.5 + 1)
-    rows = (P + cols - 1) // cols
+    rows = int(P**0.5 + 1)
+    cols = (P + rows - 1) // rows
         
-    f = plt.figure(figsize = (cols * 6, rows * 3))
+    f = plt.figure(figsize = (cols * 8, rows * 4))
+    plt.subplots_adjust(left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
     for i in range(P):
         plt.subplot(rows, cols, i+1)
         if type(Comps[i]) == np.ndarray:
             Ci = Comps[i]
-            Ci, lons_s = basemap.shiftgrid(180, Ci, lons)
-            render_component(m, Ci[lat_ndx, :], lats_s, lons_s - 360,
+            Ci2, lons_s = basemap.shiftgrid(180, Ci, lons)
+            lons_s -= 360
+            m = Basemap(projection='mill',
+                        llcrnrlat=lats_s[0], urcrnrlat=lats_s[-1],
+                        llcrnrlon=lons_s[0], urcrnrlon=lons_s[-1],
+                        resolution='c')
+            render_component(m, Ci2[lat_ndx, :], lats_s, lons_s,
                              rmax, sym_clims, plt_name + ' - ' + names[i])
         else:
             # it's a 1D plot (time series)
