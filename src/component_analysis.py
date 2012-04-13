@@ -70,6 +70,47 @@ def pca_components(d):
     return U, s, Vt
 
 
+def corrmat_components(d):
+    """
+    Compute PCA components from the correlation matrix assuming that axis0 are the variables (rows)
+    and axis 1 are the observations (columns).  The data is not copied and is overwritten.
+    """
+    # remove mean of each time series
+    d = d - np.mean(d, axis = 1)[:, np.newaxis]
+
+    # normalize each time series
+    d = d / np.std(d, axis = 1)[:, np.newaxis]
+    
+    # svd will return only the diagonal of the S matrix    
+    U, s, Vt = svd(d, False, True, True)
+    s **= 2
+    s *= 1.0 / (d.shape[1] - 1)
+    
+    # flip signs so that max(abs()) of each col is positive
+    for i in range(U.shape[1]):
+        if max(U[:,i]) < abs(min(U[:,i])):
+            U[:,i] *= -1.0
+            Vt[i,:] *= -1.0
+            
+    return U, s, Vt
+
+
+def corrmat_components_gf(d):
+    """
+    Estimate the correlation matrix components of a geo-field. d[0] must be time (observations).
+    Other axes are considered spatial and will be unrolled into one variable dimension.
+    The PCA is then performed on a 2D matrix with space (axis 1) as the variables and
+    time (axis 0) as the observations.
+    """
+    # reshape by combining all spatial dimensions
+    d = np.reshape(d, (d.shape[0], np.prod(d.shape[1:])))
+    
+    # we need the constructed single spatial dimension to be on axis 0
+    d = d.transpose()
+    
+    return corrmat_components(d)
+
+
 def orthomax(U, rtol = np.finfo(np.float32).eps, gamma = 1.0, maxiter = 1000):
     """
     Rotate the matrix U using a varimax scheme.  Maximum no of rotation is 1000 by default.

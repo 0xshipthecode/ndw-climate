@@ -476,4 +476,4 @@ if __name__ == '__main__':
 #    plot_slp_model_orders()
 #    plot_slp_component_eigvals()
 #    plot_components_slp()
-    synth_model_plot_component_matching()
+#    synth_model_plot_component_matching()

@@ -7,6 +7,7 @@ Created on Thu Mar  1 11:17:39 2012
 
 import numpy as np
 import scipy as sp
+import math
 from datetime import date
 from netCDF4 import Dataset
 
@@ -26,6 +27,7 @@ class GeoField:
         self.lons = None
         self.lats = None
         self.tm = None
+        self.cos_weights = None
         
     
     def data(self):
@@ -184,3 +186,22 @@ class GeoField:
         f = f.transpose()
         new_shape = [n] + list(self.spatial_dims())
         return f.reshape(new_shape)
+    
+    
+    def qea_lattitude_weights(self):
+        """
+        Return a grid which contains the scaling factors to rescale each time series
+        by sqrt(cos(lattitude)).
+        """
+        # if cached, return cached version
+        if self.cos_weights != None:
+            return self.cos_weights
+        
+        # if not cached recompute, cache and return
+        cos_weights = np.zeros_like(self.d[0, :, :])
+        lats = self.lats
+        for lat_ndx in range(len(lats)):
+                cos_weights[lat_ndx, :] = math.cos(lats[lat_ndx] * math.pi / 180) ** 0.5
+                 
+        self.cos_weights = cos_weights
+        return cos_weights

@@ -18,19 +18,23 @@ import cPickle
 #
 # Current simulation parameters
 #
-NUM_SURR = 100
+NUM_SURR = 1000
 NUM_EIGS = 100
 POOL_SIZE = None
 RECOMPUTE_MODEL = True
-
+COSINE_REWEIGHTING = True
 
 def compute_surrogate_cov_eigvals(x):
     sd, U = x
 #    sd.construct_surrogate_with_noise()
-#    sd.construct_white_noise_surrogates()
-    sd.construct_fourier1_surrogates()
+    sd.construct_white_noise_surrogates()
+#    sd.construct_fourier1_surrogates()
     
-    Ur, sr, _ = pca_components_gf(sd.surr_data())
+    d = sd.surr_data()
+    if COSINE_REWEIGHTING:
+        d = d * sd.qea_lattitude_weights()
+    
+    Ur, sr, _ = pca_components_gf(d)
     
 #    perm, sf = match_components_munkres(U, Ur)
 #    Ur = Ur[:, perm[:NUM_EIGS]]
@@ -44,13 +48,13 @@ if __name__ == "__main__":
 
     print("Estimate PCA components script version 1.0")
     
-#    print("Loading data ...")
-#    gf = GeoField()
-#    gf.load("data/pres.mon.mean.nc", 'pres')
-#    gf.transform_to_anomalies()
-#    gf.normalize_monthly_variance()
-#    gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
-##    gf.slice_spatial(None, [20, 89])
+    print("Loading data ...")
+    gf = GeoField()
+    gf.load("data/pres.mon.mean.nc", 'pres')
+    gf.transform_to_anomalies()
+    gf.normalize_monthly_variance()
+    gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
+    gf.slice_spatial(None, [20, 89])
 #    gf.slice_spatial(None, [-88, 88])
 
 #    S = np.zeros(shape = (5, 10), dtype = np.int32)
@@ -60,13 +64,13 @@ if __name__ == "__main__":
 #    ts = v.simulate(768)
 #    d = make_model_geofield(S, ts)
     
-    S = np.zeros(shape = (20, 50), dtype = np.int32)
-    S[10:18, 25:45] = 1
-    S[0:3, 6:12] = 2
-    S[8:15, 2:12] = 3
-    v, Sr = constructVAR(S, [0.0, 0.6, 0.9, 0.7], [0.3, 0.5], [0.0, 0.0])
-    ts = v.simulate(200)
-    gf = make_model_geofield(S, ts)
+#    S = np.zeros(shape = (20, 50), dtype = np.int32)
+#    S[10:18, 25:45] = 1
+#    S[0:3, 6:12] = 2
+#    S[8:15, 2:12] = 3
+#    v, Sr = constructVAR(S, [0.0, 0.6, 0.9, 0.7], [0.3, 0.5], [0.0, 0.0])
+#    ts = v.simulate(200)
+#    gf = make_model_geofield(S, ts)
 
 #    plt.figure()
 #    plt.subplot(1,2,1)
@@ -83,7 +87,11 @@ if __name__ == "__main__":
     pool = Pool(POOL_SIZE)
     
     # compute the eigenvalues/eigenvectos of the covariance matrix of
-    Ud, dlam, _ = pca_components_gf(gf.data())
+    d = gf.data()
+    if COSINE_REWEIGHTING:
+        d = d * gf.qea_lattitude_weights()
+        
+    Ud, dlam, _ = pca_components_gf(d)
     Ud = Ud[:, :NUM_EIGS]
     dlam = dlam[:NUM_EIGS]
     
