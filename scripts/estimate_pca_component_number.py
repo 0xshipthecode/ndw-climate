@@ -32,7 +32,7 @@ def compute_surrogate_cov_eigvals(x):
     
     d = sd.surr_data()
     if COSINE_REWEIGHTING:
-        d = d * sd.qea_lattitude_weights()
+        d = d * sd.qea_latitude_weights()
     
     Ur, sr, _ = pca_components_gf(d)
     
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # compute the eigenvalues/eigenvectos of the covariance matrix of
     d = gf.data()
     if COSINE_REWEIGHTING:
-        d = d * gf.qea_lattitude_weights()
+        d = d * gf.qea_latitude_weights()
         
     Ud, dlam, _ = pca_components_gf(d)
     Ud = Ud[:, :NUM_EIGS]

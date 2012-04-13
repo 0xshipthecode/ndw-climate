@@ -188,7 +188,7 @@ class GeoField:
         return f.reshape(new_shape)
     
     
-    def qea_lattitude_weights(self):
+    def qea_latitude_weights(self):
         """
         Return a grid which contains the scaling factors to rescale each time series
         by sqrt(cos(lattitude)).
