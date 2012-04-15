@@ -362,7 +362,7 @@ def plot_components_slp():
     gf.load('data/pres.mon.mean.nc', 'pres')
     gf.slice_spatial(None, [20, 89])
     
-    with open('results/slp_nh_var_bootstrap_results_b1000.bin', 'r') as f:
+    with open('results/slp_nh_var_bootstrap_results_b1000_cosweights.bin', 'r') as f:
         d = cPickle.load(f)
 
     mn = d['mean']
@@ -377,6 +377,7 @@ def plot_components_slp():
                              mn_gf[i, ...] * (np.abs(mn_gf[i,...]) > thr)],
                              [ 'Mean', 'Mean:Thr'],
                              gf.lats, gf.lons, False,
+#                             'figs/nhemi_comp%02d_varimax_mn.png' % (i+1),
                              'figs/nhemi_comp%02d_varimax_mn.pdf' % (i+1),
                              'Component %d' % (i+1))
                                 for i in range(mn.shape[1])]
@@ -475,5 +476,5 @@ if __name__ == '__main__':
 #    plot_slp_components_stability_b1000()
 #    plot_slp_model_orders()
 #    plot_slp_component_eigvals()
-#    plot_components_slp()
+    plot_components_slp()
 #    synth_model_plot_component_matching()

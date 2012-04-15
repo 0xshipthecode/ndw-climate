@@ -1,5 +1,4 @@
 
-
 from datetime import date
 from geo_field import GeoField
 import numpy as np
@@ -26,8 +25,12 @@ if __name__ == '__main__':
     print(nao.shape)
     nao_ndx = nao[:745, 2]
     
+    naoh = np.loadtxt('data/nao_index_hurrel.tim.txt', skiprows = 0)
+    print(naoh.shape)
+    naoh_ndx = naoh[:745, 2]
+
     # load the components
-    with open('results/slp_nh_var_bootstrap_results_b1000.bin', 'r') as f:
+    with open('results/slp_nh_var_bootstrap_results_b1000_cosweights.bin', 'r') as f:
         d = cPickle.load(f)
         
     # convert to unit vectors
@@ -51,16 +54,17 @@ if __name__ == '__main__':
     Cplus = np.corrcoef(data_naoplus, rowvar = False)
     
 #    sio.savemat('results/nao_correlation_components.mat', { 'Cnao_minus' : Cminus, 'Cnao_plus' : Cplus})
+    diag1 = np.eye(Cminus.shape[0])
     
     plt.figure()
     plt.subplots_adjust(left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
     plt.subplot(131)
-    p = plt.imshow(Cminus**2 - np.eye(43), interpolation = 'nearest')
+    p = plt.imshow(Cminus**2 - diag1, interpolation = 'nearest')
     p.set_clim(0.0, 0.5)
     plt.colorbar(fraction = 0.07, shrink = 0.7, aspect = 15)
     plt.title('NAO- squared corr. [zero diag]', fontsize = 18)
     plt.subplot(132)
-    p = plt.imshow(Cplus**2 - np.eye(43), interpolation = 'nearest')
+    p = plt.imshow(Cplus**2 - diag1, interpolation = 'nearest')
     p.set_clim(0.0, 0.5)
     plt.colorbar(fraction = 0.07, shrink = 0.7, aspect = 15)
     plt.title('NAO+ squared corr. [zero diag]', fontsize = 18)
@@ -74,9 +78,13 @@ if __name__ == '__main__':
     print(nao_ndx.shape)
     print(ts.shape)
     
-    C = np.corrcoef(np.hstack([nao_ndx[:, np.newaxis], ts]), rowvar = False)
-    C = C[:, 0]
+    Cp = np.corrcoef(np.hstack([nao_ndx[:732, np.newaxis], ts[:732,:]]), rowvar = False)
+    Cp = Cp[:, 0]
+    Ch = np.corrcoef(np.hstack([naoh_ndx[:732, np.newaxis], ts[:732,:]]), rowvar = False)
+    Ch = Ch[:, 0]
     plt.figure()
-    plt.plot(np.arange(ts.shape[1]) + 1, C[1:])
+    plt.plot(np.arange(ts.shape[1]) + 1, Cp[1:])
+    plt.plot(np.arange(ts.shape[1]) + 1, Ch[1:])
+    plt.legend(('Corr with PC NAO', 'Corr with Station NAO'))
     plt.title('Correlation of component time series with NAO index')
     plt.show()
