@@ -26,7 +26,7 @@ def estimate_components_orthomax(d):
     U = U[:, :NUM_COMPONENTS]
     if not ROTATE_NORMALIZED:
         U *= s[np.newaxis, :NUM_COMPONENTS]
-    Ur, _, _ = orthomax(U, gamma = GAMMA)
+    Ur, _, _ = orthomax(U, gamma = GAMMA, norm_rows=True)
     Ur /= np.sum(Ur**2, axis = 0) ** 0.5
     return Ur
 
