@@ -228,7 +228,7 @@ def render_slp_components():
     
 def render_slp_component_element_values():
     
-    with open('results/slp_nh_var_bootstrap_results_b1000.bin', 'r') as f:
+    with open('results/slp_nh_var_bootstrap_results_b1000_cosweights.bin', 'r') as f:
         d = cPickle.load(f)
         
     mn = d['mean']
@@ -467,14 +467,15 @@ def synth_model_plot_component_matching():
 if __name__ == '__main__':
     
 #    render_slp_nh_component_eigvals()
+#    plot_components_slp()
+    render_slp_component_element_values()
+    
 #    render_synth_model_component_eigvals()
 #    render_synth_surrogate_model_component_eigvals()
     
 #    render_model_order_synth_model()
 #    render_slp_components()
-#    render_slp_component_element_values()
 #    plot_slp_components_stability_b1000()
 #    plot_slp_model_orders()
 #    plot_slp_component_eigvals()
-    plot_components_slp()
 #    synth_model_plot_component_matching()

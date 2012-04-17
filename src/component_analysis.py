@@ -111,7 +111,7 @@ def corrmat_components_gf(d):
     return corrmat_components(d)
 
 
-def orthomax(U, rtol = np.finfo(np.float32).eps, gamma = 1.0, maxiter = 1000):
+def orthomax(U, rtol = np.finfo(np.float32).eps ** 0.5, gamma = 1.0, maxiter = 1000):
     """
     Rotate the matrix U using a varimax scheme.  Maximum no of rotation is 1000 by default.
     The rotation is in place (the matrix U is overwritten with the result).  For optimal performance,

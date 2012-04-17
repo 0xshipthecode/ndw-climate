@@ -57,13 +57,15 @@ def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_
                 llcrnrlon=lons_s[0], urcrnrlon=lons_s[-1],
                 resolution='c')
 
-    plt.figure()
+    f = plt.figure()
     plt.subplots_adjust(left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
     plt.subplot(1, 1, 1)
     render_component(m, Cout[lat_ndx, :], lats_s, lons_s, rmax, sym_clims, plt_name, cmap)
     
     if fname:
         plt.savefig(fname)
+        
+    return f
     
 
 def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fname = None, plt_name = None):
