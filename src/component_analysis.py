@@ -124,7 +124,7 @@ def orthomax(U, rtol = np.finfo(np.float32).eps ** 0.5, gamma = 1.0, maxiter = 1
     
     # normalize rows if required
     if norm_rows:
-        rn = np.sum(Ur**2, axis = 1)
+        rn = np.sum(Ur**2, axis = 1)[:, np.newaxis]
         Ur /= rn
     
     dsum = 0.0
