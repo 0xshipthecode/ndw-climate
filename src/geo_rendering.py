@@ -64,8 +64,9 @@ def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_
     
     if fname:
         plt.savefig(fname)
-        
-    return f
+        plt.close(f)
+    else:
+        return f
     
 
 def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fname = None, plt_name = None):
@@ -99,7 +100,7 @@ def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fna
     
     if fname:
         plt.savefig(fname)
-        plt.close()
+        plt.close(f)
     else:
         return f
 
@@ -151,7 +152,7 @@ def render_component_set(Comps, names, lats, lons, sym_clims = True, fname = Non
     
     if fname:
         plt.savefig(fname)
-        plt.close()
+        plt.close(f)
     else:
         return f
 
