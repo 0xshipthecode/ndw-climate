@@ -9,6 +9,8 @@ from geo_rendering import render_components, render_component_triple
 from spatial_model_generator import constructVAR, make_model_geofield
 from spca_meng import extract_sparse_components
 from error_metrics import estimate_snr, mse_error, marpe_error
+import mdp
+from mdp.nodes import FastICANode
 
 import os.path
 import sys
@@ -16,6 +18,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cPickle
 
+
+
+def estimate_components_ica(d):
+    """
+    Compute the ICA based on the input data d.
+    """
+    U, s, Vt = pca_components_gf(d, True)
+    U = U[:, :NUM_COMPONENTS]
+    V = np.transpose(Vt)
+    V = V[:, :NUM_COMPONENTS]
+    f = FastICANode(whitened = True, max_it = 10000, g = 'tanh', fine_g = 'tanh', max_it_fine = 1000)
+    Vr = f.execute(V)
+    P = f.get_projmatrix()
+    Ur = np.dot(U, P)
+    Ur /= np.sum(Ur**2, axis = 0) ** 0.5
+    return Ur
+    
 
 def estimate_components_orthomax(d):
     """
@@ -44,13 +63,13 @@ def estimate_components_meng(d):
 #
 # Current simulation parameters
 #
-NUM_BOOTSTRAPS = 1000
-NUM_COMPONENTS = 6
+NUM_BOOTSTRAPS = 100
+NUM_COMPONENTS = 3
 POOL_SIZE = None
 RECOMPUTE_MODEL = True
 GAMMA = 1.0
 ROTATE_NORMALIZED = True
-COMPONENT_ESTIMATOR = estimate_components_orthomax
+COMPONENT_ESTIMATOR = estimate_components_ica
 SPCA_SPARSITY = 200
 
 
@@ -153,6 +172,7 @@ if __name__ == "__main__":
     # thus creating separate copies of sd
     print("Running parallel generation of bootstraps and SVD")
     slam_list = pool.map(compute_bootstrap_sample_components, [(gf, Ur)] * NUM_BOOTSTRAPS)
+#    slam_list = map(compute_bootstrap_sample_components, [(gf, Ur)] * NUM_BOOTSTRAPS)
 
     num_comp = 0    
     for Urb in slam_list:

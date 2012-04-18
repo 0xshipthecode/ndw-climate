@@ -20,7 +20,7 @@ if __name__ == '__main__':
     gf.slice_date_range(date(1950, 1, 1), date(2012, 3, 1))
     
     # load the components
-    with open('results/slp_nh_var_bootstrap_results_b1000.bin', 'r') as f:
+    with open('results/slp_nh_var_bootstrap_results_b1000_cosweights.bin', 'r') as f:
         d = cPickle.load(f)
         
     # convert to unit vectors

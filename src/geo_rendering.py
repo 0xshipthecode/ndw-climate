@@ -6,7 +6,7 @@ import numpy as np
 from mpl_toolkits import basemap
 
 
-def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None, cmap = None):
+def render_component(m, C, lats, lons, clims = None, title = None, cmap = None, cbar = True):
     """
     Render a single component onto the current axes.  Lats/lons must
     be sorted and must correspond to the 2D component C.  The image
@@ -23,10 +23,11 @@ def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None, cm
     f = m.transform_scalar(C, lons, lats, nx, ny)
     
     imgplt = m.imshow(f, alpha = 0.8, cmap = cmap)
-    if sym_clims:
-        imgplt.set_clim(-rmax, rmax)
+    if clims:
+        imgplt.set_clim(clims[0], clims[1])
         
-    plt.colorbar(fraction = 0.07, shrink = 0.7, aspect = 15)
+    if cbar:
+        plt.colorbar(fraction = 0.07, shrink = 0.5, aspect = 15)
     
     if title != None:
         plt.title(title)
@@ -34,11 +35,15 @@ def render_component(m, C, lats, lons, rmax, sym_clims = False, title = None, cm
     return imgplt
         
         
-def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_name = None, cmap = None):
+def render_component_single(C, lats, lons, clims = None, fname = None, plt_name = None, cmap = None, cbar = True):
     """
     Render a single component on a plot.
     """
-    rmax = max([np.max(C), np.max(-C)])
+    
+    # we either accept prescribed
+    if clims == 'symm':
+        rmax = max(np.amax(C), np.amax(-C))
+        clims = (-rmax, rmax)
     
     if plt_name == None:
         plt_name = 'Component'
@@ -58,9 +63,13 @@ def render_component_single(C, lats, lons, sym_clims = False, fname = None, plt_
                 resolution='c')
 
     f = plt.figure()
-    plt.subplots_adjust(left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
+    if cbar:
+        plt.subplots_adjust(left = 0.1, bottom = 0.05, right = 0.95, top = 0.95)
+    else:
+        plt.subplots_adjust(left = 0.1, bottom = 0.05, right = 1.0, top = 1.0)
+
     plt.subplot(1, 1, 1)
-    render_component(m, Cout[lat_ndx, :], lats_s, lons_s, rmax, sym_clims, plt_name, cmap)
+    render_component(m, Cout[lat_ndx, :], lats_s, lons_s, clims, plt_name, cmap, cbar)
     
     if fname:
         plt.savefig(fname)
@@ -105,7 +114,7 @@ def render_component_triple(C1, C2, C3, names, lats, lons, sym_clims = True, fna
         return f
 
 
-def render_component_set(Comps, names, lats, lons, sym_clims = True, fname = None, plt_name = None):
+def render_component_set(Comps, names, lats, lons, clims = None, fname = None, plt_name = None):
     """
     Render a component set.  Each component is either 
       - a 2D ndarray with layout corresponding to lats/lons and is plotted using Basemap
@@ -115,8 +124,14 @@ def render_component_set(Comps, names, lats, lons, sym_clims = True, fname = Non
     """
     P = len(Comps)
     
-    # find max/min over all components
-    rmax = max([max(np.max(Ci), abs(np.min(Ci))) for Ci in Comps if type(Ci) == np.ndarray])
+    # check required color limits
+    if clims == 'symm':
+        rmax = max([max(np.max(Ci), abs(np.min(Ci))) for Ci in Comps if type(Ci) == np.ndarray])
+        clims = (-rmax, rmax)
+    elif clims == 'same':
+        rmax = max([np.max(Ci) for Ci in Comps if type(Ci) == np.ndarray])
+        rmin = max([np.min(Ci) for Ci in Comps if type(Ci) == np.ndarray])
+        clims = (rmin, rmax)
     
     # fill in "default" name
     if plt_name == None:
@@ -143,7 +158,7 @@ def render_component_set(Comps, names, lats, lons, sym_clims = True, fname = Non
                         llcrnrlon=lons_s[0], urcrnrlon=lons_s[-1],
                         resolution='c')
             render_component(m, Ci2[lat_ndx, :], lats_s, lons_s,
-                             rmax, sym_clims, plt_name + ' - ' + names[i])
+                             clims, plt_name + ' - ' + names[i])
         else:
             # it's a 1D plot (time series)
             x, y = Comps[i]

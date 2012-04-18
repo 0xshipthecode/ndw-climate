@@ -31,7 +31,7 @@ def pca_eigvals(d):
     return 1.0 / (d.shape[1] - 1) * svdvals(d, True)**2
 
 
-def pca_components_gf(d):
+def pca_components_gf(d, spatial = True):
     """
     Estimate the PCA components of a geo-field. d[0] must be time (observations).
     Other axes are considered spatial and will be unrolled into one variable dimension.
@@ -44,19 +44,22 @@ def pca_components_gf(d):
     # we need the constructed single spatial dimension to be on axis 0
     d = d.transpose()
     
-    return pca_components(d)
+    return pca_components(d, spatial)
 
 
-def pca_components(d):
+def pca_components(d, spatial = True):
     """
     Compute the standard PCA components assuming that axis0 are the variables (rows)
     and axis 1 are the observations (columns).  The data is not copied and is
     overwritten.
     """
     # remove mean of each time series
-    d = d - np.mean(d, axis = 1)[:, np.newaxis]
+    if spatial:
+        d = d - np.mean(d, axis = 1)[:, np.newaxis]
+    else:
+        d = d - np.mean(d, axis = 0)[np.newaxis, :]
 
-    # svd will return only the diagonal of the S matrix    
+    # SVD will return only the diagonal of the S matrix    
     U, s, Vt = svd(d, False, True, True)
     s **= 2
     s *= 1.0 / (d.shape[1] - 1)
