@@ -200,6 +200,8 @@ if __name__ == '__main__':
     ts = np.transpose(np.dot(mn.T, data))
     print(ts.shape)
     
+    sio.savemat('results/slp_nh_component_time_series.mat', { 'ts' : ts})
+    
     nao_pos = np.argsort(nao_ndx)
     
     f30 = 745 // 3
@@ -216,7 +218,7 @@ if __name__ == '__main__':
     Dminus = threshold_matrix(Cminus, 0.1)
     Dplus = threshold_matrix(Cplus, 0.1)
     
-    sio.savemat('results/nao_correlation_components_02.mat', { 'Cnao_minus' : Cminus, 'Cnao_plus' : Cplus,
+    sio.savemat('results/nao_correlation_components_01.mat', { 'Cnao_minus' : Cminus, 'Cnao_plus' : Cplus,
                                                             'Dnao_minus' : Dminus, 'Dnao_plus' : Dplus})
     diag1 = np.eye(Cminus.shape[0])
     
@@ -259,7 +261,7 @@ if __name__ == '__main__':
 
     plot_clusters_with_centers_and_links(gf, c_field, cc_lons, cc_lats, [])
     
-    md = sio.loadmat('results/nao_modularity.mat')
+    md = sio.loadmat('results/nao_modularity_01.mat')
     Cm = md['Cm']
     Cp = md['Cp'] 
     c_fieldp = np.zeros_like(c_field)
@@ -273,6 +275,6 @@ if __name__ == '__main__':
     plot_clusters_with_centers_and_links(gf, c_fieldm, [], [], [])    
 #    plot_clusters_with_centers_and_links(gf, c_field, cc_lons, cc_lats, get_superthresh_links(Cplus, 0.1))
 #    plot_clusters_with_centers_and_links(gf, c_field, cc_lons, cc_lats, get_superthresh_links(Cminus, 0.1))
-    plot_clusters_with_centers_and_links(gf, c_field, cc_lons, cc_lats, get_superthresh_links(Cdiff, 0.05))
+#    plot_clusters_with_centers_and_links(gf, c_field, cc_lons, cc_lats, get_superthresh_links(Cdiff, 0.05))
 
     plt.show()

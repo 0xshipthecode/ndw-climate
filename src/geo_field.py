@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Created on Thu Mar  1 11:17:39 2012
 
@@ -66,9 +65,20 @@ class GeoField:
         d.close()
         
 
+    def slice_level(self, lev):
+        """
+        Slice the data and keep only one level (presupposes that the data has levels).
+        """
+        if self.d.ndim > 3:
+            self.d = self.d[:, lev, ...]
+        else:
+            raise "Slicing levels in single-level data!"
+    
     def slice_date_range(self, date_from, date_to):
-        """Subselects the date range.  Date_from is inclusive, date_to is not.
-           Modification is in-place due to volume of data."""
+        """
+        Subselects the date range.  Date_from is inclusive, date_to is not.
+        Modification is in-place due to volume of data.
+        """
         
         d_start = date_from.toordinal()
         d_stop = date_to.toordinal()
@@ -76,6 +86,19 @@ class GeoField:
         ndx = np.logical_and(self.tm >= d_start, self.tm < d_stop)
         self.tm = self.tm[ndx]
         self.d = self.d[ndx, ...]
+        
+
+    def find_date_ndx(self, dt):
+        """
+        Return the index that corresponds to the specific day.
+        Returns none if the date is not contained in the data.
+        """
+        d_day = dt.toordinal()
+        pos = np.nonzero(self.tm == d_day)
+        if len(pos) == 1:
+            return pos[0]
+        else:
+            return None
         
         
     def slice_months(self, months):

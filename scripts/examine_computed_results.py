@@ -22,9 +22,9 @@ FILE_NAME_EIGS = 'results/slp_nh_var_comp_count_cosweights.bin'
 #FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_normrows.bin'
 #FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights_normrows.bin'
 
-FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights.bin'
-FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights.bin'
-METHOD_NAME = 'URPCA'
+#FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights.bin'
+#FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights.bin'
+#METHOD_NAME = 'URPCA'
 
 #FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_fastica.bin'
 #FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights_fastica.bin'
@@ -33,6 +33,14 @@ METHOD_NAME = 'URPCA'
 #FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_fasticaT.bin'
 #FILE_NAME_COMPS_SURR = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_fasticaT.bin'
 #METHOD_NAME = 'FastICAT'
+
+#FILE_NAME_COMPS = 'results/real_slp_nh_var_bootstrap_results_b1000_cosweights.bin'
+#FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights.bin'
+#METHOD_NAME = 'URPCA'
+
+FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_spca.bin'
+FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights.bin'
+METHOD_NAME = 'SPCA'
 
 def render_slp_component_oneframe():
     
@@ -353,6 +361,11 @@ def plot_all_stabilities():
 
     mn_fasticaS = np.sum(d['mean'] ** 2, axis = 0) ** 0.5
     
+    with open('results/slp_nh_var_bootstrap_results_b1000_cosweights_spca.bin', 'r') as f:
+        d = cPickle.load(f)
+
+    mn_spca = np.sum(d['mean'] ** 2, axis = 0) ** 0.5
+
     with open('results/slp_nh_var_bootstrap_results_b1000_cosweights.bin', 'r') as f:
         d = cPickle.load(f)
 
@@ -362,10 +375,12 @@ def plot_all_stabilities():
     plt.plot(np.arange(Nc) + 1, mn_urpca, 'go-')
     plt.plot(np.arange(Nc) + 1, mn_fasticaS, 'bo-')
     plt.plot(np.arange(Nc) + 1, mn_fasticaT, 'mo-')
+    plt.plot(np.arange(Nc) + 1, mn_spca, 'ko-')
     plt.plot(np.arange(Nc) + 1, mn_surr_model, 'ro-')
     plt.axis([0.5, Nc + 0.5, 0.0, 1.0])
     plt.title('2-norm of averaged components (stability)')
-    plt.legend(('URPCA', 'FastICA-S', 'FastICA-T', 'Surrogate model'))
+    leg = plt.legend(('URPCA', 'FastICA-S', 'FastICA-T', 'PCA-S', 'Surrogate model'), 'lower center', ncol = 3)
+    plt.setp(leg.get_texts(), fontsize = 'small')
     f.savefig('figs/slp_nh_component_stability_all.pdf')
     
 if __name__ == '__main__':
@@ -374,13 +389,12 @@ if __name__ == '__main__':
 #    render_slp_component_element_values()
 #    
 #    plot_slp_components_stability_b1000()
-    render_slp_component_oneframe()
+#    render_slp_component_oneframe()
 #        
 #    plot_nao_correlations()
 #    plt.show()
-#    
+    
 #    render_components_slp()
     
-#    plot_all_stabilities()
-#    plot_slp_component_eigvals()
+    plot_all_stabilities()
     
