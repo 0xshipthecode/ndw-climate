@@ -1,5 +1,5 @@
 close all
-load ../results/nao_correlation_components_02.mat
+load ../results/nao_correlation_components_01.mat
 
 % connectivity
 figure;

@@ -225,7 +225,7 @@ def plot_slp_component_eigvals():
     plt.legend(('Data', 'AR', 'WN', 'Fourier'))
     
     plt.axes([0.3, 0.3, 0.5, 0.3], axisbg = 'w')
-    plt.axis([44, 49, 5.1, 6.6])
+    plt.axis([55, 70, 10, 23])
     
     plt.plot(np.arange(N) + 1, dlam, 'ro-', linewidth = 1.5)
     mn = np.mean(slam_ar, axis = 0)
@@ -385,7 +385,7 @@ def plot_all_stabilities():
     
 if __name__ == '__main__':
     
-#    plot_slp_component_eigvals()
+    plot_slp_component_eigvals()
 #    render_slp_component_element_values()
 #    
 #    plot_slp_components_stability_b1000()
@@ -396,5 +396,5 @@ if __name__ == '__main__':
     
 #    render_components_slp()
     
-    plot_all_stabilities()
+#    plot_all_stabilities()
     
