@@ -10,7 +10,7 @@ from datetime import date
 
 def load_monthly_data_general(fname, varname, from_date, to_date, months, slice_lon, slice_lat, level):
     g = GeoField()
-    g.load('data/slp.mon.mean.nc', 'slp')
+    g.load(fname, varname)
     if level is not None:
         g.slice_level(level)
     g.transform_to_anomalies()

@@ -17,6 +17,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import cPickle
+from surr_geo_field_ar import SurrGeoFieldAR
 
 
 
@@ -63,13 +64,13 @@ def estimate_components_meng(d):
 #
 # Current simulation parameters
 #
-NUM_BOOTSTRAPS = 100
+NUM_BOOTSTRAPS = 500
 NUM_COMPONENTS = 3
-POOL_SIZE = None
+POOL_SIZE = 3
 RECOMPUTE_MODEL = True
 GAMMA = 1.0
 ROTATE_NORMALIZED = True
-COMPONENT_ESTIMATOR = estimate_components_ica
+COMPONENT_ESTIMATOR = estimate_components_orthomax
 SPCA_SPARSITY = 200
 
 
@@ -134,6 +135,17 @@ if __name__ == "__main__":
     ts = v.simulate(200)
     gf = make_model_geofield(S, ts)
     
+    # initialize a parallel pool
+    pool = Pool(POOL_SIZE)
+
+    # replace field with surrogate field
+    sgf = SurrGeoFieldAR()
+    sgf.copy_field(gf)
+    sgf.prepare_surrogates(pool)
+    sgf.construct_surrogate_with_noise()
+    gf = sgf
+    gf.d = gf.surr_data().copy()
+    
 #    # construct "components" from the structural matrix
     Uopt = np.zeros((len(Sr), np.amax(Sr)))   
     for i in range(Uopt.shape[1]):
@@ -142,9 +154,6 @@ if __name__ == "__main__":
         Uopt[np.nonzero(Uopt[:,i])[0][0],i] = 0.0
         Uopt[:,i] /= np.sum(Uopt[:,i]**2) ** 0.5
 
-    # initialize a parallel pool
-    pool = Pool(POOL_SIZE)
-    
     print("Analyzing data ...")
     
     # compute the eigenvalues and eigenvectors of the (spatial) covariance matrix 
