@@ -1,9 +1,12 @@
 
 
 from mpl_toolkits.basemap import Basemap
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits import basemap
+import datetime
+
 
 
 def render_component(m, C, lats, lons, clims = None, title = None, cmap = None, cbar = True):
@@ -148,7 +151,11 @@ def render_component_set(Comps, names, lats, lons, clims = None, fname = None, p
     f = plt.figure(figsize = (cols * 8, rows * 4))
     plt.subplots_adjust(left = 0.05, bottom = 0.05, right = 0.95, top = 0.95)
     for i in range(P):
-        plt.subplot(rows, cols, i+1)
+        if i == 2 and P == 3:
+            ax = plt.subplot(2, 1, 2)
+        else:
+            ax = plt.subplot(rows, cols, i+1)
+        
         if type(Comps[i]) == np.ndarray:
             Ci = Comps[i]
             Ci2, lons_s = basemap.shiftgrid(180, Ci, lons)
@@ -159,11 +166,19 @@ def render_component_set(Comps, names, lats, lons, clims = None, fname = None, p
                         resolution='c')
             render_component(m, Ci2[lat_ndx, :], lats_s, lons_s,
                              clims, plt_name + ' - ' + names[i])
-        else:
-            # it's a 1D plot (time series)
+        elif type(Comps[i]) == tuple:
+            # it's a 1D plot (time series with time)
             x, y = Comps[i]
-            plt.plot(x, y, 'bo-')
+            d = [datetime.date.fromordinal(int(xi)) for xi in x]
+            plt.plot(d, y, 'b-')
+            for label in ax.get_xticklabels():
+                label.set_rotation(30)
+                label.set_horizontalalignment('right')
+            ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d')         
             plt.title(plt_name + ' - ' + names[i])
+        else:
+            # leave empty, not understood
+            plt.title('Plot data not understood.')
     
     if fname:
         plt.savefig(fname)

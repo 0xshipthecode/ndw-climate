@@ -29,7 +29,7 @@ def load_monthly_slp_nh(from_date = date(1948, 1, 1), to_date = date(2012, 1, 1)
 
 def load_monthly_slp_all(from_date = date(1948, 1, 1), to_date = date(2012, 1, 1),  months = None):
     return load_monthly_data_general('data/slp.mon.mean.nc', 'slp',
-                                     from_date, to_date, months, None, None,
+                                     from_date, to_date, months, None, [-89, 89],
                                      None)
 
 def load_monthly_sat_nh(from_date = date(1948, 1, 1), to_date = date(2012, 1, 1),  months = None):
@@ -38,4 +38,4 @@ def load_monthly_sat_nh(from_date = date(1948, 1, 1), to_date = date(2012, 1, 1)
 
 def load_monthly_sat_all(from_date = date(1948, 1, 1), to_date = date(2012, 1, 1),  months = None):
     return load_monthly_data_general('data/air.mon.mean.nc', 'air',
-                                     from_date, to_date, months, None, None, 0)
+                                     from_date, to_date, months, None, [-89, 89], 0)

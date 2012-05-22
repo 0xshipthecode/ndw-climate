@@ -12,9 +12,10 @@ from component_analysis import matched_components, match_components_munkres
 import cPickle
 import numpy as np
 from mpl_toolkits import basemap
+import geo_data_loader
 
 
-FILE_NAME_EIGS = 'results/slp_nh_var_comp_count_cosweights.bin'
+#FILE_NAME_EIGS = 'results/slp_nh_var_comp_count_cosweights.bin'
 
 #FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_unnorm_normrows.bin'
 #FILE_NAME_COMPS_SURR = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_unnorm_normrows.bin'
@@ -38,11 +39,21 @@ FILE_NAME_EIGS = 'results/slp_nh_var_comp_count_cosweights.bin'
 #FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights.bin'
 #METHOD_NAME = 'URPCA'
 
-FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_spca.bin'
-FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights.bin'
-METHOD_NAME = 'SPCA'
+#FILE_NAME_COMPS = 'results/slp_nh_var_bootstrap_results_b1000_cosweights_spca.bin'
+#FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights.bin'
+#METHOD_NAME = 'SPCA'
 
-def render_slp_component_oneframe():
+FILE_NAME_EIGS = 'results/slp_all_var_comp_count_cosweights.bin'
+FILE_NAME_COMPS = 'results/slp_all_var_bootstrap_results_b1000_cosweights_varimax.bin'
+FILE_NAME_COMPS_SURR = 'results/slp_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
+METHOD_NAME = 'URPCA'
+
+#FILE_NAME_EIGS = 'results/sat_all_var_comp_count_cosweights.bin'
+#FILE_NAME_COMPS = 'results/sat_all_var_bootstrap_results_b1000_cosweights_varimax.bin'
+#FILE_NAME_COMPS_SURR = 'results/sat_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
+#METHOD_NAME = 'URPCA'
+
+def render_component_oneframe(gf, templ):
     
     with open(FILE_NAME_COMPS, 'r') as f:
         d = cPickle.load(f)
@@ -56,9 +67,6 @@ def render_slp_component_oneframe():
     cid = np.argmax(np.abs(mn) * mn_mask, axis = 1)[:, np.newaxis] + 1
     cid[zero_mask, :] = 0
     
-    gf = GeoField()
-    gf.load('data/pres.mon.mean.nc', 'pres')
-    gf.slice_spatial(None, [20, 89])
     mnd = gf.reshape_flat_field(cid)
     
     # in case lats are not in ascending order, fix this
@@ -85,10 +93,10 @@ def render_slp_component_oneframe():
     ny = int((m.ymax-m.ymin) / 20000) + 1
     f = m.transform_scalar(Cout[lat_ndx, :], lons_s, lats_s, nx, ny, order = 0)
     
-    plt.title('NH Extratropical Components [%s]' % METHOD_NAME)
+    plt.title('Components [%s]' % METHOD_NAME)
     imgplt = m.imshow(f, alpha = 0.8, cmap = plt.get_cmap('Paired'))
     
-    fig.savefig('figs/slp_nh_component_clusters.pdf', bbox_inches = 'tight', pad_inches = 0.5, transparent = True)
+    fig.savefig('figs/%s_component_clusters.pdf' % templ, bbox_inches = 'tight', pad_inches = 0.5, transparent = True)
     
     print('Uncovered area: %d grid points' % (np.sum(cid==0)))
     
@@ -102,7 +110,7 @@ def render_slp_component_oneframe():
     plt.bar(np.arange(Nc) - 0.3 + 1, c_size[1:], 0.6)
     plt.xlabel('Cluster id')
     plt.ylabel('Grid points in cluster')
-    f.savefig('figs/slp_nh_cluster_sizes.pdf')
+    f.savefig('figs/%s_cluster_sizes.pdf' % templ)
     
     
 def render_slp_component_element_values():
@@ -137,7 +145,7 @@ def render_slp_component_element_values():
     return f
 
 
-def plot_slp_components_stability_b1000():
+def plot_components_stability_b1000(templ):
     
     with open(FILE_NAME_COMPS, 'r') as f:
         d = cPickle.load(f)
@@ -157,11 +165,11 @@ def plot_slp_components_stability_b1000():
     plt.plot(np.arange(mns.shape[1]) + 1, Csstab, 'go-')
     plt.axis([0.5, mns.shape[1] + 0.5, 0.0, 1.0])
     plt.title('Squared 2-norm of vectors')
-    plt.legend(('B1000, run 1', 'Surrogate'))
-    f.savefig('figs/slp_nh_component_stability.pdf')
+    plt.legend(('B1000', 'Surrogate'))
+    f.savefig('figs/%s_component_stability.pdf' % templ)
     
     print('Mean component stability: %g (std %g)' % (np.mean(Cstab), np.std(Cstab)))
-    print('Mean surrogate stability: %g (std %g)' % (np.mean(Csstab), np.std(Csstab)))
+#    print('Mean surrogate stability: %g (std %g)' % (np.mean(Csstab), np.std(Csstab)))
     
     
 def render_slp_model_orders():
@@ -244,42 +252,75 @@ def render_set_stub(x):
     render_component_set(*x)
 
 
-def render_components_slp():
-    
-    gf = GeoField()
-    gf.load('data/pres.mon.mean.nc', 'pres')
-    gf.slice_spatial(None, [20, 89])
-    
+def render_components(gf, templ):
+
     with open(FILE_NAME_COMPS, 'r') as f:
         d = cPickle.load(f)
 
     mn = d['mean']
+    mn /= np.sum(mn**2, axis = 0)**0.5
     
     mn_gf = gf.reshape_flat_field(mn)
     
+    data = gf.data()
+    data = np.transpose(np.reshape(data, (data.shape[0], data.shape[1] * data.shape[2])))
+    
+    # extract the time series
+    ts = np.dot(mn.T, data)
     t_start = datetime.now()
+    
     thr = 1.0 / mn.shape[0]**0.5
 
     pool = Pool(4)
-    render_list_triples = [ ([mn_gf[i, ...], 
-                             mn_gf[i, ...] * (np.abs(mn_gf[i,...]) > thr)],
-                             [ 'Mean', 'Mean:Thr'],
+    render_list_sets = [ ([mn_gf[i, ...], 
+                             mn_gf[i, ...] * (np.abs(mn_gf[i,...]) > thr),
+                             (gf.tm, ts[i, :])],
+                             [ 'Mean', 'Mean:Thr', 'Time series'],
                              gf.lats, gf.lons, 'symm',
 #                             'figs/nhemi_comp%02d_varimax_mn.png' % (i+1),
-                             'figs/nhemi_comp%02d_varimax_mn.png' % (i+1),
+                             'figs/%s_comp%02d_varimax_mn.png' % (templ, i+1),
                              'Component %d' % (i+1))
                                 for i in range(mn.shape[1])]
 
     # use less nodes to render the maps due to memory constraints
-    pool.map(render_set_stub, render_list_triples)
+    pool.map(render_set_stub, render_list_sets)
     pool.close()
 
     # clean up memory
-    del render_list_triples
+    del render_list_sets
 
     print("DONE after [%s]." % (datetime.now() - t_start))
     
     
+def plot_explained_variance(gf, templ):
+
+    with open(FILE_NAME_COMPS, 'r') as f:
+        d = cPickle.load(f)
+
+    mn = d['mean']
+#    mn /= np.sum(mn**2, axis = 0)**0.5
+    
+    data = gf.data()
+    data *= gf.qea_latitude_weights()
+    data = np.transpose(np.reshape(data, (data.shape[0], data.shape[1] * data.shape[2])))
+    
+    # extract the time series
+    ts = np.dot(mn.T, data)
+    
+    vars = np.sum(ts**2, axis = 1)
+    
+    total_var = np.trace(np.dot(data.T, data))
+
+    plt.figure()
+    plt.plot(np.arange(vars.shape[0]) + 1, vars / total_var)
+    plt.plot([1, vars.shape[0]], [1.0 / vars.shape[0]] * 2, 'r-')
+    plt.title('Explained variance of each component')
+    plt.xlabel('Component index')
+    plt.ylabel('Explained variance [-]')
+    plt.savefig('figs/%s_explained_variance.png' % templ)
+
+    print('Sum of explained variance %g' % (np.sum(vars) / total_var))
+
 def plot_nao_correlations():
     
     # load geo-field
@@ -385,16 +426,23 @@ def plot_all_stabilities():
     
 if __name__ == '__main__':
     
-    plot_slp_component_eigvals()
+#    gf = geo_data_loader.load_monthly_sat_all()
+#    templ = 'sat_all'
+    gf = geo_data_loader.load_monthly_slp_all()
+    templ = 'slp_all'
+        
+#    plot_slp_component_eigvals()
 #    render_slp_component_element_values()
-#    
-#    plot_slp_components_stability_b1000()
-#    render_slp_component_oneframe()
+    
+#    plot_components_stability_b1000(templ)
+#    render_component_oneframe(gf, templ)
 #        
 #    plot_nao_correlations()
 #    plt.show()
     
-#    render_components_slp()
+#    render_components(gf, templ)
+    
+    plot_explained_variance(gf, templ)
     
 #    plot_all_stabilities()
     
