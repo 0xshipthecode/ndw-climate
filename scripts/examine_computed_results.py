@@ -13,6 +13,7 @@ import cPickle
 import numpy as np
 from mpl_toolkits import basemap
 import geo_data_loader
+from scipy.signal.spectral import lombscargle
 
 
 #FILE_NAME_EIGS = 'results/slp_nh_var_comp_count_cosweights.bin'
@@ -266,21 +267,26 @@ def render_components(gf, templ):
     data = np.transpose(np.reshape(data, (data.shape[0], data.shape[1] * data.shape[2])))
     
     # extract the time series
-    ts = np.dot(mn.T, data)
+    ts = np.dot(mn.T, data).astype(np.float64)
+    tsn = ts - np.mean(ts, axis = 1)[:, np.newaxis]
+    tsn /= np.std(tsn, axis = 1)[:, np.newaxis]
+    
     t_start = datetime.now()
     
     thr = 1.0 / mn.shape[0]**0.5
+    
+    freqs = np.logspace(-2, 1, 100).astype(np.float64)
 
     pool = Pool(4)
-    render_list_sets = [ ([mn_gf[i, ...], 
-                             mn_gf[i, ...] * (np.abs(mn_gf[i,...]) > thr),
-                             (gf.tm, ts[i, :])],
-                             [ 'Mean', 'Mean:Thr', 'Time series'],
-                             gf.lats, gf.lons, 'symm',
-#                             'figs/nhemi_comp%02d_varimax_mn.png' % (i+1),
-                             'figs/%s_comp%02d_varimax_mn.png' % (templ, i+1),
-                             'Component %d' % (i+1))
-                                for i in range(mn.shape[1])]
+    render_list_sets = [ ([mn_gf[i, ...] * (np.abs(mn_gf[i,...]) > thr),
+                           ('date', gf.tm, ts[i, :]),
+                           ('freq', freqs, 20 * np.log(np.sqrt(lombscargle(np.arange(ts.shape[1], dtype = np.float64), tsn[i,:], freqs) * 4.0 / ts.shape[1]))),
+                           ('plot', np.arange(ts.shape[1]), 1.0 / tsn.shape[1] * np.correlate(tsn[i,:], tsn[i,:], mode = 'same'))],
+                          [ 'Mean:Thr', 'Time series', 'Frequency', 'Autocorrelation'],
+                          gf.lats, gf.lons, 'symm',
+                          'figs/%s_comp%02d_varimax_mn.png' % (templ, i+1),
+                          'Component %d' % (i+1))
+                          for i in range(mn.shape[1]) ]
 
     # use less nodes to render the maps due to memory constraints
     pool.map(render_set_stub, render_list_sets)
@@ -428,7 +434,7 @@ if __name__ == '__main__':
     
 #    gf = geo_data_loader.load_monthly_sat_all()
 #    templ = 'sat_all'
-    gf = geo_data_loader.load_monthly_slp_all()
+    gf = geo_data_loader.load_monthly_slp_all2()
     templ = 'slp_all'
         
 #    plot_slp_component_eigvals()
@@ -440,9 +446,9 @@ if __name__ == '__main__':
 #    plot_nao_correlations()
 #    plt.show()
     
-#    render_components(gf, templ)
+    render_components(gf, templ)
     
-    plot_explained_variance(gf, templ)
+#    plot_explained_variance(gf, templ)
     
 #    plot_all_stabilities()
     

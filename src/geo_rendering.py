@@ -145,7 +145,7 @@ def render_component_set(Comps, names, lats, lons, clims = None, fname = None, p
     lats_s = lats[lat_ndx]
     
     # each figure is 6 x 3, how do we arange them?
-    rows = int(P**0.5 + 1)
+    rows = int(P**0.5 + 0.5)
     cols = (P + rows - 1) // rows
         
     f = plt.figure(figsize = (cols * 8, rows * 4))
@@ -167,18 +167,31 @@ def render_component_set(Comps, names, lats, lons, clims = None, fname = None, p
             render_component(m, Ci2[lat_ndx, :], lats_s, lons_s,
                              clims, plt_name + ' - ' + names[i])
         elif type(Comps[i]) == tuple:
-            # it's a 1D plot (time series with time)
-            x, y = Comps[i]
-            d = [datetime.date.fromordinal(int(xi)) for xi in x]
-            plt.plot(d, y, 'b-')
-            for label in ax.get_xticklabels():
-                label.set_rotation(30)
-                label.set_horizontalalignment('right')
-            ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d')         
-            plt.title(plt_name + ' - ' + names[i])
-        else:
-            # leave empty, not understood
-            plt.title('Plot data not understood.')
+            ptype, x, y = Comps[i]
+            
+            if ptype == 'date': 
+                # it's a 1D plot (time series with time)
+                d = [datetime.date.fromordinal(int(xi)) for xi in x]
+                plt.plot(d, y, 'b-')
+                for label in ax.get_xticklabels():
+                    label.set_rotation(30)
+                    label.set_horizontalalignment('right')
+                ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d')         
+                plt.title(plt_name + ' - ' + names[i])
+            elif ptype == 'freq':
+                plt.semilogx(x, y)
+                plt.grid()
+                plt.xlabel('Angular frequency [rad/sample]')
+                plt.ylabel('Frequency content [dB]')
+                plt.title(plt_name + ' - ' + names[i])
+            elif ptype == 'plot': 
+                plt.plot(x, y, 'b-')
+                plt.xlabel('Samples')
+                plt.title(plt_name + ' - ' + names[i])
+            else:
+                # leave empty, not understood
+                plt.title('Plot data not understood.')
+                
     
     if fname:
         plt.savefig(fname)
