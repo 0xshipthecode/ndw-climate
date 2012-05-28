@@ -179,10 +179,16 @@ def render_component_set(Comps, names, lats, lons, clims = None, fname = None, p
                 ax.fmt_xdata = matplotlib.dates.DateFormatter('%Y-%m-%d')         
                 plt.title(plt_name + ' - ' + names[i])
             elif ptype == 'freq':
-                plt.semilogx(x, y)
+                plt.plot(x, y)
                 plt.grid()
                 plt.xlabel('Angular frequency [rad/sample]')
                 plt.ylabel('Frequency content [dB]')
+                plt.title(plt_name + ' - ' + names[i])
+            elif ptype == 'invfreq':
+                plt.plot(x, y)
+                plt.grid()
+                plt.xlabel('Period')
+                plt.ylabel('Frequency content')
                 plt.title(plt_name + ' - ' + names[i])
             elif ptype == 'plot': 
                 plt.plot(x, y, 'b-')

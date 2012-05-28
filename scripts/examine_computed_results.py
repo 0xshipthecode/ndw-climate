@@ -44,15 +44,15 @@ from scipy.signal.spectral import lombscargle
 #FILE_NAME_COMPS_SURR = 'results/slp_nh_var_surrogate_bootstrap_results_b1000_cosweights.bin'
 #METHOD_NAME = 'SPCA'
 
-FILE_NAME_EIGS = 'results/slp_all_var_comp_count_cosweights.bin'
-FILE_NAME_COMPS = 'results/slp_all_var_bootstrap_results_b1000_cosweights_varimax.bin'
-FILE_NAME_COMPS_SURR = 'results/slp_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
-METHOD_NAME = 'URPCA'
-
-#FILE_NAME_EIGS = 'results/sat_all_var_comp_count_cosweights.bin'
-#FILE_NAME_COMPS = 'results/sat_all_var_bootstrap_results_b1000_cosweights_varimax.bin'
-#FILE_NAME_COMPS_SURR = 'results/sat_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
+#FILE_NAME_EIGS = 'results/slp_all_var_comp_count_cosweights.bin'
+#FILE_NAME_COMPS = 'results/slp_all_var_bootstrap_results_b1000_cosweights_varimax.bin'
+#FILE_NAME_COMPS_SURR = 'results/slp_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
 #METHOD_NAME = 'URPCA'
+
+FILE_NAME_EIGS = 'results/sat_all_var_comp_count_cosweights.bin'
+FILE_NAME_COMPS = 'results/sat_all_var_bootstrap_results_b1000_cosweights_varimax.bin'
+FILE_NAME_COMPS_SURR = 'results/sat_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
+METHOD_NAME = 'URPCA'
 
 def render_component_oneframe(gf, templ):
     
@@ -253,6 +253,10 @@ def render_set_stub(x):
     render_component_set(*x)
 
 
+def ls_spectral_estimate(freqs, tsn):
+    ls = lombscargle(np.arange(tsn.shape[0], dtype = np.float64), tsn, freqs)
+    return np.sqrt(ls * 4.0 / tsn.shape[0])
+
 def render_components(gf, templ):
 
     with open(FILE_NAME_COMPS, 'r') as f:
@@ -275,13 +279,14 @@ def render_components(gf, templ):
     
     thr = 1.0 / mn.shape[0]**0.5
     
-    freqs = np.logspace(-2, 1, 100).astype(np.float64)
+    periods = np.linspace(2.0, 240.0, 238*10)
+    freqs = 2.0 * np.pi / periods
 
     pool = Pool(4)
     render_list_sets = [ ([mn_gf[i, ...] * (np.abs(mn_gf[i,...]) > thr),
                            ('date', gf.tm, ts[i, :]),
-                           ('freq', freqs, 20 * np.log(np.sqrt(lombscargle(np.arange(ts.shape[1], dtype = np.float64), tsn[i,:], freqs) * 4.0 / ts.shape[1]))),
-                           ('plot', np.arange(ts.shape[1]), 1.0 / tsn.shape[1] * np.correlate(tsn[i,:], tsn[i,:], mode = 'same'))],
+                           ('invfreq', periods / 12.0, ls_spectral_estimate(freqs, tsn[i, :])),
+                           ('plot', np.arange(ts.shape[1]) - ts.shape[1] / 2, 1.0 / tsn.shape[1] * np.correlate(tsn[i,:], tsn[i,:], mode = 'same'))],
                           [ 'Mean:Thr', 'Time series', 'Frequency', 'Autocorrelation'],
                           gf.lats, gf.lons, 'symm',
                           'figs/%s_comp%02d_varimax_mn.png' % (templ, i+1),
@@ -432,10 +437,10 @@ def plot_all_stabilities():
     
 if __name__ == '__main__':
     
-#    gf = geo_data_loader.load_monthly_sat_all()
-#    templ = 'sat_all'
-    gf = geo_data_loader.load_monthly_slp_all2()
-    templ = 'slp_all'
+    gf = geo_data_loader.load_monthly_sat_all2()
+    templ = 'sat_all'
+#    gf = geo_data_loader.load_monthly_slp_all2()
+#    templ = 'slp_all'
         
 #    plot_slp_component_eigvals()
 #    render_slp_component_element_values()
