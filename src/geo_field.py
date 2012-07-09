@@ -6,6 +6,7 @@ Created on Thu Mar  1 11:17:39 2012
 
 import numpy as np
 import scipy as sp
+import scipy.signal as sps
 import math
 from datetime import date
 from netCDF4 import Dataset
@@ -228,3 +229,14 @@ class GeoField:
                  
         self.cos_weights = cos_weights
         return cos_weights
+
+
+    def apply_filter(self, b, a):
+        """
+        Apply a filter in b, a form (uses filtfilt) to each time series.
+        """
+        d = self.d
+        
+        for i in range(d.shape[1]):
+            for j in range(d.shape[2]):
+                d[:, i,j] = sps.filtfilt(b, a, d[:, i, j])
