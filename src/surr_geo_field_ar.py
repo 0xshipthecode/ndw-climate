@@ -27,7 +27,8 @@ class SurrGeoFieldAR(GeoField):
     
     
     def __init__(self, order_range = [0, 30], crit = 'sbc'):
-        """"""
+        """
+        """
         GeoField.__init__(self)
         self.sd = None
         self.order_range = order_range
@@ -56,7 +57,7 @@ class SurrGeoFieldAR(GeoField):
 
     def surr_data(self):
         """Return the (hopefully already constructed) surrogate data."""
-        return self.sd
+        return self.sd.copy()
         
 
     def copy_field(self, other):

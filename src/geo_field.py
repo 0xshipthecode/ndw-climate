@@ -14,9 +14,10 @@ from netCDF4 import Dataset
 
 class GeoField:
     """
-    A class that represents the time series of a geographic field.  All represented fields
-    have two spatial dimensions (longitude, latitude) and one temporal dimension.  Optionally
-    the fields may have a height dimension.
+    A class that represents the time series of a geographic field.
+    All represented fields have two spatial dimensions (longitude,
+    latitude) and one temporal dimension.  Optionally the fields may
+    have a height dimension.
     """ 
     
     def __init__(self):
@@ -32,8 +33,9 @@ class GeoField:
     
     def data(self):
         """
-        Return a copy of the stored data as a multi-array.
-        If access without copying is required for performance reasons, use self.d at your own risk.
+        Return a copy of the stored data as a multi-array. If access
+        without copying is required for performance reasons, use
+        self.d at your own risk.
         """
         return self.d.copy()
         
@@ -61,24 +63,26 @@ class GeoField:
         # extract spatial & temporal info
         self.lons = d.variables['lon'][:]
         self.lats = d.variables['lat'][:]
-        self.tm = d.variables['time'][:] / 24.0
+        self.tm = d.variables['time'][:] / 24.0 - 1.0
 
         d.close()
         
 
     def slice_level(self, lev):
         """
-        Slice the data and keep only one level (presupposes that the data has levels).
+        Slice the data and keep only one level (presupposes that the
+        data has levels).
         """
         if self.d.ndim > 3:
             self.d = self.d[:, lev, ...]
         else:
             raise "Slicing levels in single-level data!"
     
+
     def slice_date_range(self, date_from, date_to):
         """
-        Subselects the date range.  Date_from is inclusive, date_to is not.
-        Modification is in-place due to volume of data.
+        Subselects the date range.  Date_from is inclusive, date_to is
+        not.  Modification is in-place due to volume of data.
         """
         
         d_start = date_from.toordinal()
@@ -104,8 +108,9 @@ class GeoField:
         
     def slice_months(self, months):
         """
-        Subselect only certain months, not super efficient but useable, since upper bound
-        on len(months) = 12. Modification is in-place due to volume of data.
+        Subselect only certain months, not super efficient but
+        useable, since upper bound on len(months) = 12. Modification
+        is in-place due to volume of data.
         """
         tm = self.tm
         ndx = filter(lambda i: date.fromordinal(int(tm[i])).month in months, range(len(tm)))
@@ -116,8 +121,9 @@ class GeoField:
 
     def slice_spatial(self, lons, lats):
         """
-        Slice longitude and/or latitude.  None means don't modify dimension.
-        Both arguments are ranges [from, to], both limits are inclusive.
+        Slice longitude and/or latitude.  None means don't modify
+        dimension.  Both arguments are ranges [from, to], both limits
+        are inclusive.
         """
         if lons != None:
             lon_ndx = np.nonzero(np.logical_and(self.lons >= lons[0], self.lons <= lons[1]))[0]
@@ -129,7 +135,8 @@ class GeoField:
         else:
             lat_ndx = np.arange(len(self.lats))
 
-        # apply slice to the data (by dimensions, as slicing in two dims at the same time doesn't work)             
+        # apply slice to the data (by dimensions, as slicing in two
+        # dims at the same time doesn't work)
         d = self.d
         d = d[..., lat_ndx, :]
         self.d = d[..., lon_ndx]
@@ -147,11 +154,20 @@ class GeoField:
         d = self.d
         delta = self.tm[1] - self.tm[0]
         
-        if abs(delta - 1.0) < 0.1:
+        if delta == 1:
             # daily data
-            for i in range(365):
-                mn = np.mean(d[i::365, :, :], axis = 0)
-                d[i::365, :, :] -= mn
+            day, mon = self.extract_day_and_month()
+
+            for mi in range(1, 13):
+                month_mask = (mon == mi)
+                for di in range(1, 32):
+                    sel = np.logical_and(month_mask, day == di)
+                    # some days, will be nonexistent, e.g. 30th Feb
+                    if np.sum(sel) == 0:
+                        continue
+                    mn = np.mean(d[sel, :, :], axis = 0)
+                    d[sel, :, : ] -= mn
+
         elif abs(delta - 30) < 3.0:
             # monthly data
             for i in range(12):
@@ -161,23 +177,41 @@ class GeoField:
             raise "Unknown temporal sampling in geographical field."
 
 
-    def normalize_monthly_variance(self):
+    def normalize_variance(self):
         """
-        Normalize the variance of monthly values.
+        Normalize the variance of monthly or daily values.  A calendar
+        strategy is applied for daily data.
         """
         # check if data is monthly
         d = self.d
         delta = self.tm[1] - self.tm[0]
 
-        if abs(delta - 30) < 3.0:
+        if delta == 1:
+            # daily data
+            day, mon = self.extract_day_and_month()
+
+            for mi in range(1, 13):
+                month_mask = (mon == mi)
+                for di in range(1, 32):
+                    sel = np.logical_and(month_mask, day == di)
+                    # some days, will be nonexistent, e.g. 30th Feb
+                    if np.sum(sel) == 0:
+                        continue
+                    std = np.std(d[sel, :, :], axis = 0)
+                    if np.any(std == 0.0):
+                        print("WARN: some zero stdevs found for date %d.%d."
+                              % (di, mi))
+                        std[std == 0.0] = 1.0
+                    d[sel, :, : ] /= std
+        elif abs(delta - 30) < 3.0:
             # monthly data
             for i in range(12):
                 mn = np.std(d[i::12, :, :], axis = 0)
                 d[i::12, :, :] /= mn
         else:
-            raise "Not monthly data!"
+            raise "Unknown temporal sampling in geographical field."
 
-    
+
     def sample_temporal_bootstrap(self):
         """
         Return a temporal bootstrap sample.
@@ -187,7 +221,7 @@ class GeoField:
         ndx = sp.random.random_integers(0, num_tm - 1, size = (num_tm,))
         
         # return a copy of the resampled dataset
-        return self.d[ndx, ...].copy()
+        return self.d[ndx, ...].copy(), ndx
     
     
     def spatial_dims(self):
@@ -240,3 +274,20 @@ class GeoField:
         for i in range(d.shape[1]):
             for j in range(d.shape[2]):
                 d[:, i,j] = sps.filtfilt(b, a, d[:, i, j])
+
+
+    def extract_day_and_month(self):
+        """
+        Convert the self.tm data into two arrays -- day of month
+        and month of year.
+        """
+        Ndays = len(self.tm)
+        days = np.zeros((Ndays,))
+        months = np.zeros((Ndays,))
+
+        for i, d in zip(range(Ndays), self.tm):
+            dt = date.fromordinal(int(d))
+            days[i] = dt.day
+            months[i] = dt.month
+        
+        return days, months

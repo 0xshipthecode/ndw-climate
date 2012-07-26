@@ -49,10 +49,32 @@ from scipy.signal.spectral import lombscargle
 #FILE_NAME_COMPS_SURR = 'results/slp_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
 #METHOD_NAME = 'URPCA'
 
-FILE_NAME_EIGS = 'results/sat_all_var_comp_count_cosweights.bin'
-FILE_NAME_COMPS = 'results/sat_all_var_bootstrap_results_b1000_cosweights_varimax.bin'
-FILE_NAME_COMPS_SURR = 'results/sat_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
+#FILE_NAME_EIGS = 'results/sat_all_var_comp_count_cosweights.bin'
+#FILE_NAME_COMPS = 'results/sat_all_var_bootstrap_results_b1000_cosweights_varimax.bin'
+#FILE_NAME_COMPS_SURR = 'results/sat_all_var_surr_bootstrap_results_b1000_cosweights_varimax.bin'
+#METHOD_NAME = 'URPCA'
+
+FILE_NAME_EIGS = 'results/slp_sh_var_comp_count_cosweights.bin'
+FILE_NAME_COMPS = 'results/slp_sh_var_bootstrap_results_b1000_cosweights_varimax.bin'
 METHOD_NAME = 'URPCA'
+
+
+def render_frequency_prevalence(gf, period, templ):
+    """
+    The frequency is in samples/year.
+    """
+
+    ff = np.zeros((gf.d.shape[1], gf.d.shape[2]), dtype = np.float64)
+    tm = np.arange(0, gf.d.shape[0] / 12.0, 1.0 / 12, dtype = np.float64)
+    for i in range(gf.d.shape[1]):
+        for j in range(gf.d.shape[2]):
+            pg = lombscargle(tm, gf.d[:, i, j].astype(np.float64), np.array([2.0 * np.pi / period]))
+            ff[i,j] = np.sqrt(pg[0] * 4.0 / tm.shape[0])    
+
+    f = render_component_single(ff, gf.lats, gf.lons, None, None, '%gyr period' % period)
+    f.savefig('figs/%s_%dyr_cycle_prevalence.pdf' % (templ, period))
+
+    
 
 def render_component_oneframe(gf, templ):
     
@@ -254,8 +276,12 @@ def render_set_stub(x):
 
 
 def ls_spectral_estimate(freqs, tsn):
+    """
+    The frequencies must be in angular "months".
+    """
     ls = lombscargle(np.arange(tsn.shape[0], dtype = np.float64), tsn, freqs)
     return np.sqrt(ls * 4.0 / tsn.shape[0])
+
 
 def render_components(gf, templ):
 
@@ -264,7 +290,6 @@ def render_components(gf, templ):
 
     mn = d['mean']
     mn /= np.sum(mn**2, axis = 0)**0.5
-    
     mn_gf = gf.reshape_flat_field(mn)
     
     data = gf.data()
@@ -280,13 +305,14 @@ def render_components(gf, templ):
     thr = 1.0 / mn.shape[0]**0.5
     
     periods = np.linspace(2.0, 240.0, 238*10)
-    freqs = 2.0 * np.pi / periods
+    angular_freqs = 2.0 * np.pi * 1.0 / periods
 
     pool = Pool(4)
     render_list_sets = [ ([mn_gf[i, ...] * (np.abs(mn_gf[i,...]) > thr),
                            ('date', gf.tm, ts[i, :]),
-                           ('invfreq', periods / 12.0, ls_spectral_estimate(freqs, tsn[i, :])),
-                           ('plot', np.arange(ts.shape[1]) - ts.shape[1] / 2, 1.0 / tsn.shape[1] * np.correlate(tsn[i,:], tsn[i,:], mode = 'same'))],
+                           ('invfreq', periods / 12.0, ls_spectral_estimate(angular_freqs, tsn[i, :])),
+                           ('plot', np.arange(ts.shape[1]) - ts.shape[1] / 2,
+                            1.0 / tsn.shape[1] * np.correlate(tsn[i,:], tsn[i,:], mode = 'same'))],
                           [ 'Mean:Thr', 'Time series', 'Frequency', 'Autocorrelation'],
                           gf.lats, gf.lons, 'symm',
                           'figs/%s_comp%02d_varimax_mn.png' % (templ, i+1),
@@ -294,7 +320,7 @@ def render_components(gf, templ):
                           for i in range(mn.shape[1]) ]
 
     # use less nodes to render the maps due to memory constraints
-    pool.map(render_set_stub, render_list_sets)
+    map(render_set_stub, render_list_sets)
     pool.close()
 
     # clean up memory
@@ -437,11 +463,22 @@ def plot_all_stabilities():
     
 if __name__ == '__main__':
     
-    gf = geo_data_loader.load_monthly_sat_all2()
-    templ = 'sat_all'
+#    gf = geo_data_loader.load_monthly_sat_all2()
+#    templ = 'sat_all'
+
 #    gf = geo_data_loader.load_monthly_slp_all2()
 #    templ = 'slp_all'
-        
+
+#    gf = geo_data_loader.load_monthly_slp_sh()
+#    templ = 'slp_sh'
+
+    gf = geo_data_loader.load_monthly_sat_sh()
+    templ = 'sat_sh'
+   
+
+#    gf = geo_data_loader.load_daily_slp_sh()
+#    templ = 'slp_sh'
+
 #    plot_slp_component_eigvals()
 #    render_slp_component_element_values()
     
@@ -456,4 +493,7 @@ if __name__ == '__main__':
 #    plot_explained_variance(gf, templ)
     
 #    plot_all_stabilities()
+
+    for p in np.arange(1.0 + 0.01, 12.0, dtype = np.float64):
+        render_frequency_prevalence(gf, p, templ)
     
