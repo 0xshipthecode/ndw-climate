@@ -170,7 +170,7 @@ class SurrGeoFieldAR(GeoField):
         # generate uniformely distributed
         angle = np.random.uniform(0, 2 * np.pi, xf.shape)
 
-        # for 0 rotation for constant elements
+        # for 0 rotation for DC level
         angle[0, :] = 0
 
         # generate a copy and rotate randomly
@@ -181,6 +181,26 @@ class SurrGeoFieldAR(GeoField):
         
 
     
+    def construct_fourier2_surrogates(self):
+        """
+        Construct Fourier type-2 surrogates (preserve covariance structure
+        exactly).
+        """
+        xf = np.fft.rfft(self.d, axis = 0)
+
+        # generate uniformely distributed
+        angle = np.random.uniform(0, 2 * np.pi, (xf.shape[0],))
+
+        # for 0 rotation for DC level
+        angle[0] = 0
+
+        # generate a copy and rotate randomly
+        cxf = xf * np.exp(complex(0,1) * angle[:, np.newaxis, np.newaxis])
+
+        # inverse real FFT
+        self.sd = np.fft.irfft(cxf, axis = 0)
+
+
     def model_orders(self):
         """Return model orders of all models in grid."""
         mo = np.zeros_like(self.model_grid, dtype = np.int32)
