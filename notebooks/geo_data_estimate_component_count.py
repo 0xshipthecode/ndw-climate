@@ -9,8 +9,7 @@ from surr_geo_field_ar import SurrGeoFieldAR
 from multiprocessing import Pool
 from component_analysis import pca_eigvals_gf, pca_components_gf, matched_components, orthomax
 from spatial_model_generator import constructVAR, make_model_geofield
-from scipy.signal import detrend, iirdesign, filtfilt, lfilter, freqz
-from geo_data_loader import load_monthly_slp_all, load_monthly_sat_all, load_monthly_data_general
+from geo_data_loader import load_monthly_data_general
 from geo_rendering import render_component_single
 from multi_stats import compute_eigvals_pvalues, fdr_test, bonferroni_test
 
@@ -22,45 +21,23 @@ import scipy.signal as sps
 
 # <codecell>
 
-# filtering routine for the data
-def apply_filter(d, b, a):
-    for i in range(d.shape[1]):
-        for j in range(d.shape[2]):
-            d[:, i,j] = sps.filtfilt(b, a, d[:, i, j])
-
-# <codecell>
-
 #
 # Current simulation parameters
 #
-NUM_SURR = 100
+NUM_SURR = 50
 SURR_REPORT_STEP = 50
+USE_MUVAR = False
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
 NUM_EIGVALS = 100
-POOL_SIZE = 20
+POOL_SIZE = 5
 MAX_AR_ORDER = 30
 RECOMPUTE_MODEL = True
-PERIOD_RANGES = [ (18, 22), (9, 14), (6.5, 8.9), (3.5, 6), (2, 3) ]
-#PERIOD_RANGES = [ (18, 22) ]
-
-# <codecell>
-
-# construction of frequency ranges (in frequency is measured in 1/months)
-Fs = 12.0  # (months==samples)/year
-Nqs = Fs / 2.0
-frequency_ranges = [ ( 1.0 / ph / Nqs, 1.0 / pl / Nqs) for (pl, ph) in PERIOD_RANGES ]
-
-NF = len(frequency_ranges)
-filters = []
-for (i, (fl, fh)) in zip(range(NF), frequency_ranges):
-    b, a = iirdesign(wp = [fl, fh], ws = [ fl * 0.5, fh * 1.5 ], gpass = 1.0, gstop = 20, ftype = 'ellip', output = 'ba' )
-    filters.append((b, a))
 
 # <codecell>
 
 # initialize random number generators
-random.seed()
+#random.seed()
 np.random.seed()
 
 # <markdowncell>
@@ -71,41 +48,30 @@ np.random.seed()
 
 # <codecell>
 
-os.chdir('/home/martin/Projects/Climate/ndw-climate/')
+os.chdir('/home/martin/Projects/ndw-climate/')
 
 # load up the monthly SLP geo-field
-print("[%s] Loading SAT/ALL geo field..." % (str(datetime.now())))
+print("[%s] Loading geo field..." % (str(datetime.now())))
 
-gf = load_monthly_sat_all()
+gf = load_monthly_data_general("data/hgt.mon.mean.nc", "hgt",
+                               date(1948, 1, 1), date(2012, 1, 1),
+                               None, None, None, 5)
 
-# load without variance normalization
-#gf = GeoField()
-#gf.load('data/air.mon.mean.nc', 'air')
-#gf.slice_level(0)
-#gf.transform_to_anomalies()
-#gf.slice_spatial(None, [-89, 89])
-#gf.slice_date_range(date(1948, 1, 1), date(2012, 1, 1))
 
 # load up the monthly SLP geo-field
-print("[%s] Constructing F2 surrogate ..." % (str(datetime.now())))
-sgf = SurrGeoFieldAR()
-sgf.copy_field(gf)
-sgf.construct_fourier2_surrogates()
-#HACK to replace original data with surrogate
-sgf.d = sgf.sd.copy()
+if USE_MUVAR:
+    print("[%s] Constructing F2 surrogate ..." % (str(datetime.now())))
+    sgf = SurrGeoFieldAR()
+    sgf.copy_field(gf)
+    sgf.construct_fourier2_surrogates()
+    sgf.d = sgf.sd.copy()
 
-# slide in fourier2 surrogate
-orig_gf = gf
-gf = sgf
-
-#gfo = load_monthly_slp_all()
-#gf = load_monthly_data_general('../data/slp.mon.mean.nc', 'slp', date(1948, 1, 1), date(2012, 1, 1), None, None, [-89, 0], None)
-#gf = load_monthly_data_general('data/air.mon.mean.nc', 'air', date(1948, 1, 1), date(2012, 1, 1), None, None, [-89, 0], 0)
+    # slide in fourier2 surrogate
+    orig_gf = gf
+    gf = sgf
 
 # load up the monthly SLP geo-field
-print("[%s] Done loading." % (str(datetime.now())))
-
-print gf.d.shape
+print("[%s] Done loading, data hase shape %s." % (str(datetime.now()), gf.d.shape))
 
 # <markdowncell>
 
@@ -116,15 +82,11 @@ print gf.d.shape
 
 # <codecell>
 
-def compute_surrogate_cov_eigvals(x):
-    sd, f, (b,a) = x
+def compute_surrogate_cov_eigvals(sd):
     
     # construct AR/SBC surrogates
     sd.construct_surrogate_with_noise()
     d = sd.surr_data()
-    if f is not None:
-        apply_filter(d, b, a)
-    d /= np.std(d, axis = 0)
     if COSINE_REWEIGHTING:
         d *= sd.qea_latitude_weights()
     sm_ar = pca_eigvals_gf(d)
@@ -133,9 +95,6 @@ def compute_surrogate_cov_eigvals(x):
     # construct fourier surrogates
     sd.construct_fourier1_surrogates()
     d = sd.surr_data()
-    if f is not None:
-        apply_filter(d, b, a)
-    d /= np.std(d, axis = 0)
     if COSINE_REWEIGHTING:
         d *= sd.qea_latitude_weights()
     sm_f = pca_eigvals_gf(d)
@@ -148,15 +107,12 @@ def compute_surrogate_cov_eigvals(x):
         for j in range(d.shape[2]):
             ndx = np.argsort(np.random.normal(size = (N,)))
             d[:, i, j] = d[ndx, i, j]
-    if f is not None:
-        apply_filter(d, b, a)
-    d /= np.std(d, axis = 0)
     if COSINE_REWEIGHTING:
         d = d * sd.qea_latitude_weights()
     sm_w1 = pca_eigvals_gf(d)
     sm_w1 = sm_w1[:NUM_EIGVALS]
     
-    return sm_ar, sm_w1, sm_f, f
+    return sm_ar, sm_w1, sm_f
 
 # <markdowncell>
 
@@ -180,19 +136,12 @@ if USE_SURROGATE_MODEL:
     sgf.d = sgf.sd.copy()
     print("Replaced synth model with surrogate model to check false positives.")
 
-dlam = np.zeros((NUM_EIGVALS, NF))
-    
 # analyze data & obtain eigvals and surrogates
-for f in range(NF):
-    print("[%s] Analyzing data (period %g-%g yrs) ..." % (str(datetime.now()), PERIOD_RANGES[f][0], PERIOD_RANGES[f][1]))
-    d = gf.data()
-    b, a = filters[f]
-    apply_filter(d, b, a)
-    d /= np.std(d, axis = 0)
-    if COSINE_REWEIGHTING:
-        d *= gf.qea_latitude_weights()
-    dlam[:, f] = pca_eigvals_gf(d)[:NUM_EIGVALS]
-    print("[%s] Frequency-specific analysis completed." % (str(datetime.now())))
+print("[%s] Analyzing data ..." % (str(datetime.now())))
+d = gf.data()
+if COSINE_REWEIGHTING:
+    d *= gf.qea_latitude_weights()
+dlam = pca_eigvals_gf(d)[:NUM_EIGVALS]
     
 print("[%s] Data analysis DONE." % (str(datetime.now())))
 
@@ -215,18 +164,15 @@ pool = Pool(POOL_SIZE)
 log = open('geodata_estimate_component_count-%s.log' % datetime.now().strftime('%Y%m%d-%H%M'), 'w')
 
 # storage for three types of surrogates
-slam_ar = np.zeros((NUM_SURR, NUM_EIGVALS, NF))
-slam_w1 = np.zeros((NUM_SURR, NUM_EIGVALS, NF))
-#slam_w2 = np.zeros((NUM_SURR, NUM_EIGVALS))
-slam_f = np.zeros((NUM_SURR, NUM_EIGVALS, NF))
+slam_ar = np.zeros((NUM_SURR, NUM_EIGVALS))
+slam_w1 = np.zeros((NUM_SURR, NUM_EIGVALS))
+slam_f = np.zeros((NUM_SURR, NUM_EIGVALS))
 
 surr_completed = 0
-surr_completed_f = np.zeros((NF,))
 
 # construct the job queue
 job_list = []
-for f in range(NF):
-    job_list.extend([(sgf, f, filters[f])] * NUM_SURR)
+job_list.extend([sgf] * NUM_SURR)
 
 TOTAL_JOBS = len(job_list)
 print("[%s] I have %d jobs in queue." % (str(datetime.now()), TOTAL_JOBS))
@@ -256,15 +202,12 @@ while len(job_list) > 0:
     
     # rearrange into numpy array (can I use vstack for this?)
     for i in range(len(slam_list)):
-        slami_ar, slami_w1, slami_f, f = slam_list[i]
-        slam_ar[surr_completed_f[f], :, f] = slami_ar
-        slam_w1[surr_completed_f[f], :, f] = slami_w1
-        slam_f[surr_completed_f[f], :, f] = slami_f
-        
+        slami_ar, slami_w1, slami_f = slam_list[i]
+        slam_ar[surr_completed, :] = slami_ar
+        slam_w1[surr_completed, :] = slami_w1
+        slam_f[surr_completed, :] = slami_f        
         # robust computation of mean over surrogates
         surr_completed += 1
-        surr_completed_f[f] += 1
-        
         
     # predict time to go
     t2 = datetime.now()
@@ -288,13 +231,17 @@ log.close()
 print("Saving computed spectra ...")
 # save the results to file
 if USE_SURROGATE_MODEL:
-    with open('results/sat_all_freq_surrogate_comp_count_cosweights_pilot.bin', 'w') as f:
+    with open('results/hgt500_all_freq_surrogate_comp_count_cosweights_pilot.bin', 'w') as f:
         cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
-                      'orders' : sgf.model_orders(), 'period_ranges' : PERIOD_RANGES}, f)
+                      'orders' : sgf.model_orders()}, f)
+elif USE_MUVAR:
+    with open('results/hgt500_all_var_muvar_freq_comp_count_cosweights_pilot.bin', 'w') as f:
+        cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
+                      'orders' : sgf.model_orders()}, f)
 else:
-    with open('results/sat_all_var_muvar_freq_comp_count_cosweights_pilot.bin', 'w') as f:
+    with open('results/hgt500_all_var_data_freq_comp_count_cosweights_pilot.bin', 'w') as f:
         cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
-                      'orders' : sgf.model_orders(), 'period_ranges' : PERIOD_RANGES}, f)
+                       'orders' : sgf.model_orders()}, f)
 
 # <codecell>
 
@@ -316,4 +263,3 @@ print slam_ar.shape[0]
 pvals = compute_eigvals_pvalues(dlam, slam_ar)
 print("Bonferroni correction: %d significant components." % np.sum(bonferroni_test(pvals, 0.05, slam_ar.shape[0])))
 print("FDR correction: %d significant components." % np.sum(fdr_test(pvals, 0.05, slam_ar.shape[0])))
-
