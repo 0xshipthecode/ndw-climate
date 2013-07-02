@@ -17,10 +17,17 @@ def compute_eigvals_pvalues(dlam, slam):
     return p_vals
         
 
-def bonferroni_test(p_vals, sig_level):
-    """Run a Bonferroni-corrected multiple hypothesis test."""
+def bonferroni_test(p_vals, sig_level, Nsurr):
+    """
+    Run a Bonferroni-corrected multiple hypothesis test.
+    """
+    Nhyp = len(p_vals)
+    bonf_level = sig_level / Nhyp
     
-    return p_vals < sig_level / len(p_vals)
+    if bonf_level < 1.0 / Nsurr:
+        raise "Cannot run FDR, not enough surrogates used for the test!"
+    
+    return p_vals < bonf_level
 
 
 def fdr_test(p_vals, sig_level, Nsurr):
