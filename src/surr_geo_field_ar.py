@@ -18,13 +18,13 @@ def _prepare_surrogates(a):
     v = VARModel()
     v.estimate(ts, order_range, True, crit, None)
     r = v.compute_residuals(ts)
-    return(i, j, v, r)
+    return (i, j, v, r)
+    
 
 
 class SurrGeoFieldAR(GeoField):
     """Geo field data class that can construct AR(k) models of each time series
        and construct surrogates of itself from the AR(k) models."""
-    
     
     def __init__(self, order_range = [0, 30], crit = 'sbc'):
         """

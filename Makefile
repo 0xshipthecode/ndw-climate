@@ -2,7 +2,7 @@
 
 all: lib/var_model_acc.so
 
-INCDIRS=-I$(HOME)/.local/lib/python2.6/site-packages/numpy/core/include -I/usr/include/python2.6
+INCDIRS=-I/usr/include/python2.7
 
 lib/var_model_acc.so: lib/var_model_acc.c
 	gcc -shared -pthread -fPIC -fwrapv -O2 -Wall -fno-strict-aliasing $(INCDIRS) -o lib/var_model_acc.so lib/var_model_acc.c
