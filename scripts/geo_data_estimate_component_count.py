@@ -40,6 +40,12 @@ DETREND = True
 DATA_NAME = 'sat_all'
 SUFFIX ="_detrended"
 
+
+loader_functions = {
+    'sat_all' : load_monthly_sat_all,
+    'slp_all' : load_monthly_slp_all
+}
+
 # <codecell>
 
 # initialize random number generators
@@ -62,7 +68,7 @@ print("[%s] Loading geo field..." % (str(datetime.now())))
 #                               date(1948, 1, 1), date(2012, 1, 1),
 #                               None, None, None, 5)
 
-gf = load_monthly_sat_all()
+gf = loader_functions[DATA_NAME]()
 
 # if detrend is required, do it now
 if DETREND:
