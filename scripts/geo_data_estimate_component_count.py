@@ -176,6 +176,7 @@ render_component_single(mo, gf.lats, gf.lons, plt_name = 'Model orders of AR sur
 
 pool = Pool(POOL_SIZE)
 log = open('geodata_estimate_component_count-%s.log' % datetime.now().strftime('%Y%m%d-%H%M'), 'w')
+log.write('Analyzing data %s\n' % DATA_NAME)
 
 # storage for three types of surrogates
 slam_ar = np.zeros((NUM_SURR, NUM_EIGVALS))
@@ -256,7 +257,7 @@ elif USE_MUVAR:
 else:
     with open('results/%s_var_data_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX), 'w') as f:
         cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
-                       'orders' : sgf.model_orders()}, f)
+                      'orders' : sgf.model_orders()}, f)
 
 # <codecell>
 
