@@ -244,6 +244,13 @@ class GeoField:
         f = f.transpose()
         new_shape = [n] + list(self.spatial_dims())
         return f.reshape(new_shape)
+
+
+    def detrend(self):
+        """
+        Apply scipy.signal.detrend to axis 0 (time) of the data.
+        """
+        self.d = sps.detrend(self.d, axis = 0)
     
     
     def qea_latitude_weights(self):

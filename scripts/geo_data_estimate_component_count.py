@@ -36,7 +36,9 @@ NUM_EIGVALS = 100
 POOL_SIZE = 20
 MAX_AR_ORDER = 30
 RECOMPUTE_MODEL = True
+DETREND = True
 DATA_NAME = 'sat_all'
+SUFFIX ="_detrended"
 
 # <codecell>
 
@@ -61,6 +63,10 @@ print("[%s] Loading geo field..." % (str(datetime.now())))
 #                               None, None, None, 5)
 
 gf = load_monthly_sat_all()
+
+# if detrend is required, do it now
+if DETREND:
+    gf.detrend()
 
 
 # load up the monthly SLP geo-field
@@ -240,15 +246,15 @@ log.close()
 print("Saving computed spectra ...")
 # save the results to file
 if USE_SURROGATE_MODEL:
-    with open('results/%s_freq_surrogate_comp_count_cosweights_pilot.bin' % DATA_NAME, 'w') as f:
+    with open('results/%s_var_surrogate_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX), 'w') as f:
         cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
                       'orders' : sgf.model_orders()}, f)
 elif USE_MUVAR:
-    with open('results/%s_var_muvar_freq_comp_count_cosweights_pilot.bin' % DATA_NAME, 'w') as f:
+    with open('results/%s_var_muvar_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX), 'w') as f:
         cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
                       'orders' : sgf.model_orders()}, f)
 else:
-    with open('results/%s_var_data_freq_comp_count_cosweights_pilot.bin' % DATA_NAME, 'w') as f:
+    with open('results/%s_var_data_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX), 'w') as f:
         cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
                        'orders' : sgf.model_orders()}, f)
 
