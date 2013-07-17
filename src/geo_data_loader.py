@@ -80,6 +80,14 @@ def load_monthly_sat_all2(from_date = date(1948, 1, 1),
                                      from_date, to_date, months, None, None, 0)
 
 
+def load_monthly_hgt500_all(from_date = date(1948, 1, 1),
+                          to_date = date(2012, 1, 1),
+                          months = None):
+    return load_monthly_data_general("data/hgt.mon.mean.nc", "hgt",
+                                     from_date, to_date, months, None, [-89, 89], 0)
+
+
+
 def load_daily_data_general(fname, varname, from_date, to_date,
                             slice_lon, slice_lat, level):
 

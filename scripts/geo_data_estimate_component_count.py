@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-# <nbformat>3.0</nbformat>
-
-# <codecell>
 
 import matplotlib
 matplotlib.use('Agg')
@@ -9,12 +6,12 @@ matplotlib.use('Agg')
 from datetime import date, datetime
 from geo_field import GeoField
 from surr_geo_field_ar import SurrGeoFieldAR
-from multiprocessing import Pool
+from multiprocessing import Process, Queue, Pool
 from component_analysis import pca_eigvals_gf, pca_components_gf, matched_components, orthomax
 from spatial_model_generator import constructVAR, make_model_geofield
-from geo_data_loader import load_monthly_data_general, load_monthly_sat_all
+from geo_data_loader import load_monthly_sat_all, load_monthly_slp_all, load_monthly_hgt500_all
 from geo_rendering import render_component_single
-from multi_stats import compute_eigvals_pvalues, fdr_test, bonferroni_test
+from multi_stats import compute_eigvals_pvalues, fdr_test, bonferroni_test, holm_test, sidak_test
 
 import os.path
 import numpy as np
@@ -22,52 +19,45 @@ import matplotlib.pyplot as plt
 import cPickle
 import scipy.signal as sps
 
-# <codecell>
-
 #
 # Current simulation parameters
 #
-NUM_SURR = 20000
+NUM_SURR = 20
 SURR_REPORT_STEP = 200
 USE_MUVAR = False
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
 NUM_EIGVALS = 100
-POOL_SIZE = 20
+WORKER_COUNT = 2
 MAX_AR_ORDER = 30
-RECOMPUTE_MODEL = True
 DETREND = True
-DATA_NAME = 'sat_all'
+DATA_NAME = 'slp_all'
 SUFFIX ="_detrended"
 
 
 loader_functions = {
     'sat_all' : load_monthly_sat_all,
-    'slp_all' : load_monthly_slp_all
+    'slp_all' : load_monthly_slp_all,
+    'hgt500_all' : load_monthly_hgt500_all
 }
 
-# <codecell>
-
-# initialize random number generators
-#random.seed()
 np.random.seed()
 
-# <markdowncell>
+# open the log file and create a closure that writes to it
+log_file = open('geodata_estimate_component_count-%s.log' % datetime.now().strftime('%Y%m%d-%H%M'), 'w')
+def log(msg):
+    log_file.write('[%s] %s\n' % (str(datetime.now()), msg))
+    log_file.flush()
 
-# **Loading & filtering phase**
-# 
-# Now we must filter the data in frequency, the data loading has thus been moved here.
-
-# <codecell>
+log('Analyzing data: %s with suffix: %s' % (DATA_NAME, SUFFIX))
+log('Nsurr: %d Muvar: %s UseSurrModel: %s CosWeight: %s NumEigvals: %d Detrend: %s' % 
+          (NUM_SURR, USE_MUVAR, USE_SURROGATE_MODEL, COSINE_REWEIGHTING, NUM_EIGVALS, DETREND))
 
 os.chdir('/home/martin/Projects/Climate/ndw-climate/')
+log("Loading geo field...")
 
-print("[%s] Loading geo field..." % (str(datetime.now())))
-
-#gf = load_monthly_data_general("data/hgt.mon.mean.nc", "hgt",
-#                               date(1948, 1, 1), date(2012, 1, 1),
-#                               None, None, None, 5)
-
+# this function loads the data and does SOME preprocessing on it,
+# examine the function in src/geo_data_loader.py to see exactly what it's doing
 gf = loader_functions[DATA_NAME]()
 
 # if detrend is required, do it now
@@ -75,114 +65,88 @@ if DETREND:
     gf.detrend()
 
 
-# load up the monthly SLP geo-field
+# If substitution of original data with multivariate surrogate is required, do it now
 if USE_MUVAR:
-    print("[%s] Constructing F-2 surrogate ..." % (str(datetime.now())))
+    log("Constructing F-2 surrogate ...")
     sgf = SurrGeoFieldAR()
     sgf.copy_field(gf)
     sgf.construct_fourier2_surrogates()
     sgf.d = sgf.sd.copy()
 
     # slide in fourier2 surrogate
+    log("replacing data with surrogate ...")
     orig_gf = gf
     gf = sgf
 
-# load up the monthly SLP geo-field
-print("[%s] Done loading, data hase shape %s." % (str(datetime.now()), gf.d.shape))
+log("Done loading, data has shape %s." % str(gf.d.shape))
 
-# <markdowncell>
 
-# **Surrogate construction**
-# 
-# The next cell constructs surrogates in three ways.  At this point I'm verifying the previous results obtained
-# using residuals by feeding in normally distributed noise according to the model covariance matrix (noise variance in case of AR(k) models).
+def compute_surrogate_cov_eigvals(sd, jobq, resq):
 
-# <codecell>
-
-def compute_surrogate_cov_eigvals(sd):
     
-    # construct AR/SBC surrogates
-    sd.construct_surrogate_with_noise()
-    d = sd.surr_data()
-    if COSINE_REWEIGHTING:
-        d *= sd.qea_latitude_weights()
-    sm_ar = pca_eigvals_gf(d)
-    sm_ar = sm_ar[:NUM_EIGVALS]
+    while jobq.get() is not None:
+
+        # construct AR/SBC surrogates
+        sd.construct_surrogate_with_noise()
+        d = sd.surr_data()
+        if COSINE_REWEIGHTING:
+            d *= sd.qea_latitude_weights()
+        sm_ar = pca_eigvals_gf(d)
+        sm_ar = sm_ar[:NUM_EIGVALS]
     
-    # construct fourier surrogates
-    sd.construct_fourier1_surrogates()
-    d = sd.surr_data()
-    if COSINE_REWEIGHTING:
-        d *= sd.qea_latitude_weights()
-    sm_f = pca_eigvals_gf(d)
-    sm_f = sm_f[:NUM_EIGVALS]
+        # construct fourier surrogates
+        sd.construct_fourier1_surrogates()
+        d = sd.surr_data()
+        if COSINE_REWEIGHTING:
+            d *= sd.qea_latitude_weights()
+        sm_f = pca_eigvals_gf(d)
+        sm_f = sm_f[:NUM_EIGVALS]
 
-    # shuffle data (white noise surrogates)
-    d = sd.data()
-    N = d.shape[0]
-    for i in range(d.shape[1]):
-        for j in range(d.shape[2]):
-            ndx = np.argsort(np.random.normal(size = (N,)))
-            d[:, i, j] = d[ndx, i, j]
-    if COSINE_REWEIGHTING:
-        d = d * sd.qea_latitude_weights()
-    sm_w1 = pca_eigvals_gf(d)
-    sm_w1 = sm_w1[:NUM_EIGVALS]
+        # shuffle data (white noise surrogates)
+        d = sd.data()
+        N = d.shape[0]
+        for i in range(d.shape[1]):
+            for j in range(d.shape[2]):
+                ndx = np.argsort(np.random.normal(size = (N,)))
+                d[:, i, j] = d[ndx, i, j]
+        if COSINE_REWEIGHTING:
+            d = d * sd.qea_latitude_weights()
+        sm_w1 = pca_eigvals_gf(d)
+        sm_w1 = sm_w1[:NUM_EIGVALS]
     
-    return sm_ar, sm_w1, sm_f
+        resq.put((sm_ar, sm_w1, sm_f))
 
-# <markdowncell>
 
-# The above cell also returns "matched" components for the null model.
-
-# <codecell>
-
-print("[%s] Constructing surrogate model ..." % (str(datetime.now())))
-pool = Pool(POOL_SIZE)
-#pool = None
+log("Constructing surrogate model ...")
 sgf = SurrGeoFieldAR([0, MAX_AR_ORDER], 'sbc')
 sgf.copy_field(gf)
+pool = Pool(WORKER_COUNT)
 sgf.prepare_surrogates(pool)
 sgf.construct_surrogate_with_noise()
 if pool is not None:
     pool.close()
     pool.join()
     del pool
-print("[%s] Constructed."  % (str(datetime.now())))
+
+log("Surrogate model constructed.")
 
 if USE_SURROGATE_MODEL:
     # HACK to replace original data with surrogates
     gf.d = sgf.sd.copy()
     sgf.d = sgf.sd.copy()
-    print("Replaced synth model with surrogate model to check false positives.")
+    log("** WARNING ** Replaced synth model with surrogate model to check false positives.")
 
 # analyze data & obtain eigvals and surrogates
-print("[%s] Analyzing data ..." % (str(datetime.now())))
+log("Computing eigenvalues of dataset ...")
 d = gf.data()
 if COSINE_REWEIGHTING:
     d *= gf.qea_latitude_weights()
 dlam = pca_eigvals_gf(d)[:NUM_EIGVALS]
     
-print("[%s] Data analysis DONE." % (str(datetime.now())))
-
-# <markdowncell>
-
-# **Show the variance of the data (filtered)**
-
-# <markdowncell>
-
-# **Show a plot of the model orders**
-
-# <codecell>
-
+log("Rendering orders of fitted AR models.")
 mo = sgf.model_orders()
-render_component_single(mo, gf.lats, gf.lons, plt_name = 'Model orders of AR surrogates', fname='ar_model_order.png')
-
-# <codecell>
-
-pool = Pool(POOL_SIZE)
-log = open('geodata_estimate_component_count-%s.log' % datetime.now().strftime('%Y%m%d-%H%M'), 'w')
-log.write('Analyzing data %s\n' % DATA_NAME)
+render_component_single(mo, gf.lats, gf.lons, plt_name = 'Model orders of AR surrogates',
+                        fname='%s_ar_model_order_%s.png' % (DATA_NAME, SUFFIX))
 
 # storage for three types of surrogates
 slam_ar = np.zeros((NUM_SURR, NUM_EIGVALS))
@@ -192,84 +156,89 @@ slam_f = np.zeros((NUM_SURR, NUM_EIGVALS))
 surr_completed = 0
 
 # construct the job queue
-job_list = []
-job_list.extend([sgf] * NUM_SURR)
 
-TOTAL_JOBS = len(job_list)
-print("[%s] I have %d jobs in queue." % (str(datetime.now()), TOTAL_JOBS))
-log.write("[%s] I have %d jobs in queue.\n" % (str(datetime.now()), TOTAL_JOBS))
+jobq = Queue()
+resq = Queue()
+for i in range(NUM_SURR):
+    jobq.put(1)
+for i in range(WORKER_COUNT):
+    jobq.put(None)
 
-# generate and compute eigenvalues for 20000 surrogates
-t_start = datetime.now()
-    
+log("Starting workers")
+workers = [ Process(target = compute_surrogate_cov_eigvals, args = (sgf,jobq,resq)) ]
+
 # construct the surrogates in parallel
 # we can duplicate the list here without worry as it will be copied into new python processes
 # thus creating separate copies of sd
-print("[%s] Running parallel generation of surrogates and analysis." % str(t_start))
-log.write("[%s] Running parallel generation of surrogates and analysis.\n" % str(t_start))
+log("Running parallel generation of surrogates and analysis.")
 
-while len(job_list) > 0:
+# generate and compute eigenvalues for 20000 surrogates
+t_start = datetime.now()
 
-    t1 = datetime.now()
-    
-    surr_todo = min(SURR_REPORT_STEP, len(job_list))
-    
-    # take first surr_todo jobs from the job_list
-    job_donow_list = job_list[:surr_todo]
-    job_list = job_list[surr_todo:]
-    
-    # run computations for all jobs
-    slam_list = pool.map(compute_surrogate_cov_eigvals, job_donow_list)
+# start all workers (who immediately start processing the job queue)
+for w in workers:
+    w.start()
 
-    # rearrange into numpy array (can I use vstack for this?)
-    for i in range(len(slam_list)):
-        slami_ar, slami_w1, slami_f = slam_list[i]
-        slam_ar[surr_completed, :] = slami_ar
-        slam_w1[surr_completed, :] = slami_w1
-        slam_f[surr_completed, :] = slami_f        
+surr_completed = 0
+t_last = t_start
+while surr_completed < NUM_SURR:
 
-        surr_completed += 1
+    # retrieve the next result
+    slami_ar, slami_w1, slami_f = resq.get()
+    slam_ar[surr_completed, :] = slami_ar
+    slam_w1[surr_completed, :] = slami_w1
+    slam_f[surr_completed, :] = slami_f        
+    surr_completed += 1
         
     # predict time to go
-    t2 = datetime.now()
-    dt = (t2 - t1) * (TOTAL_JOBS - surr_completed) // surr_todo
+    t_now = datetime.now()
         
     # print progress
-    print("PROGRESS [%s]: %d/%d complete, predicted completion at %s." % 
-          (str(t2), surr_completed, TOTAL_JOBS, str(t2 + dt)))
-    log.write("PROGRESS [%s]: %d/%d complete, predicted completion at %s.\n" % 
-          (str(t2), surr_completed, TOTAL_JOBS, str(t2 + dt)))
-    log.flush()
+    if (t_now - t_last).total_seconds() > 600:
+        t_last = t_now
+        dt = (t_now - t_start) / surr_completed * surr_todo
+        log("PROGRESS: %d/%d complete, predicted completion at %s." % (surr_completed, NUM_SURR, str(t2 + dt)))
+        log.flush()
+
+# wait for all workers to finish
+for w in workers:
+    w.join()
         
-pool.close()
-pool.join()
+log("DONE after %s" % str(datetime.now() - t_start))
 
-print("DONE at %s after %s" % (str(datetime.now()), str(datetime.now() - t_start)))
-log.write("DONE at %s after %s\n" % (str(datetime.now()), str(datetime.now() - t_start)))
-log.close()
-
-# <codecell>
-
-print("Saving computed spectra ...")
-# save the results to file
+log("Saving computed spectra ...")
 if USE_SURROGATE_MODEL:
-    with open('results/%s_var_surrogate_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX), 'w') as f:
-        cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
-                      'orders' : sgf.model_orders()}, f)
+    fname = 'results/%s_var_surr_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX)
+    with open(fname, 'w') as f:
+        cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1,
+                       'slam_f' : slam_f, 'orders' : sgf.model_orders()}, f)
+    log("Saved results to file %s" % fname)
 elif USE_MUVAR:
-    with open('results/%s_var_muvar_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX), 'w') as f:
-        cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
-                      'orders' : sgf.model_orders()}, f)
+    fname = 'results/%s_var_muvar_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX)
+    with open(fname, 'w') as f:
+        cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1,
+                       'slam_f' : slam_f, 'orders' : sgf.model_orders()}, f)
+    log("Saved results to file %s" % fname)
 else:
-    with open('results/%s_var_data_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX), 'w') as f:
-        cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1, 'slam_f' : slam_f,
-                      'orders' : sgf.model_orders()}, f)
+    fname = 'results/%s_var_data_comp_count_cosweights%s.bin' % (DATA_NAME, SUFFIX)
+    with open(fname, 'w') as f:
+        cPickle.dump({ 'dlam' : dlam, 'slam_ar' : slam_ar, 'slam_w1' : slam_w1,
+                       'slam_f' : slam_f, 'orders' : sgf.model_orders()}, f)
+        log("Saved results to file %s" % fname)
 
-# <codecell>
 
-f = plt.figure(figsize = (10,6))
+
+pvals = compute_eigvals_pvalues(dlam, slam_ar)
+log("Bonferroni correction: %d significant components." % np.sum(bonferroni_test(pvals, 0.05, NUM_SURR)))
+log("Holm correction: %d significant components." % np.sum(holm_test(pvals, 0.05, NUM_SURR)))
+log("Sidak correction: %d significant components." % np.sum(sidak_test(pvals, 0.05, NUM_SURR)))
+fdr_comps = np.sum(fdr_test(pvals, 0.05, NUM_SURR))
+log("FDR correction: %d significant components." % fdr_comps)
+
+log("Rendering eigenvalues from data and from surrogates")
+f = plt.figure(figsize = (12,8))
 FROM_EIG = 1
-TO_EIG = 50
+TO_EIG = fdr_comps + 5
 x = np.arange(TO_EIG - FROM_EIG) + FROM_EIG
 plt.plot(x, dlam[x-1], 'ro-')
 plt.errorbar(x, np.mean(slam_ar[:, x-1], axis = 0), np.std(slam_ar[:, x-1] * 3, axis = 0), fmt = 'bo-')
@@ -277,12 +246,8 @@ plt.errorbar(x, np.mean(slam_w1[:, x-1], axis = 0), np.std(slam_w1[:, x-1] * 3, 
 plt.errorbar(x, np.mean(slam_f[:, x-1], axis = 0), np.std(slam_f[:, x-1] * 3, axis = 0), fmt = 'ko-')
 plt.legend(('Data', 'AR', 'WN', 'F1'))
 plt.title('Eigenvalues for data and surrogates')
-plt.savefig('eigvals_comparison.png')
+plt.savefig('%s_eigvals_comparison%s.png' % (DATA_NAME, SUFFIX))
 plt.close(f)
 
-# <codecell>
 
-print slam_ar.shape[0]
-pvals = compute_eigvals_pvalues(dlam, slam_ar)
-print("Bonferroni correction: %d significant components." % np.sum(bonferroni_test(pvals, 0.05, slam_ar.shape[0])))
-print("FDR correction: %d significant components." % np.sum(fdr_test(pvals, 0.05, slam_ar.shape[0])))
+log_file.close()
