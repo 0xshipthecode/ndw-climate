@@ -22,13 +22,12 @@ import scipy.signal as sps
 #
 # Current simulation parameters
 #
-NUM_SURR = 20
-SURR_REPORT_STEP = 200
+NUM_SURR = 20000
 USE_MUVAR = False
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
 NUM_EIGVALS = 100
-WORKER_COUNT = 2
+WORKER_COUNT = 4
 MAX_AR_ORDER = 30
 DETREND = True
 DATA_NAME = 'slp_all'
@@ -82,8 +81,6 @@ log("Done loading, data has shape %s." % str(gf.d.shape))
 
 
 def compute_surrogate_cov_eigvals(sd, jobq, resq):
-
-    
     while jobq.get() is not None:
 
         # construct AR/SBC surrogates
@@ -146,7 +143,7 @@ dlam = pca_eigvals_gf(d)[:NUM_EIGVALS]
 log("Rendering orders of fitted AR models.")
 mo = sgf.model_orders()
 render_component_single(mo, gf.lats, gf.lons, plt_name = 'Model orders of AR surrogates',
-                        fname='%s_ar_model_order_%s.png' % (DATA_NAME, SUFFIX))
+                        fname='%s_ar_model_order%s.png' % (DATA_NAME, SUFFIX))
 
 # storage for three types of surrogates
 slam_ar = np.zeros((NUM_SURR, NUM_EIGVALS))
@@ -165,7 +162,8 @@ for i in range(WORKER_COUNT):
     jobq.put(None)
 
 log("Starting workers")
-workers = [ Process(target = compute_surrogate_cov_eigvals, args = (sgf,jobq,resq)) ]
+workers = [Process(target = compute_surrogate_cov_eigvals,
+                   args = (sgf,jobq,resq)) for i in range(WORKER_COUNT)]
 
 # construct the surrogates in parallel
 # we can duplicate the list here without worry as it will be copied into new python processes
@@ -197,8 +195,8 @@ while surr_completed < NUM_SURR:
     if (t_now - t_last).total_seconds() > 600:
         t_last = t_now
         dt = (t_now - t_start) / surr_completed * surr_todo
-        log("PROGRESS: %d/%d complete, predicted completion at %s." % (surr_completed, NUM_SURR, str(t2 + dt)))
-        log.flush()
+        log("PROGRESS: %d/%d complete, predicted completion at %s."
+            % (surr_completed, NUM_SURR, str(t_now + dt)))
 
 # wait for all workers to finish
 for w in workers:
@@ -249,5 +247,5 @@ plt.title('Eigenvalues for data and surrogates')
 plt.savefig('%s_eigvals_comparison%s.png' % (DATA_NAME, SUFFIX))
 plt.close(f)
 
-
+# end of processing
 log_file.close()
