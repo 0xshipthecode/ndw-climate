@@ -17,26 +17,52 @@ def compute_eigvals_pvalues(dlam, slam):
     return p_vals
         
 
-def bonferroni_test(p_vals, sig_level, Nsurr):
+def bonferroni_test(p_vals, sig_level, Nsurr, Nhyp = None):
     """
-    Run a Bonferroni-corrected multiple hypothesis test.
+    Run a Bonferroni multiple testing procedure on p-values <p_vals> with significance
+    level <sig_level> given that <Nsurr> surrogates were used to compute the p-values.
+    Optionally the number of simultaneously tested hypotheses can be set with <Nhyp>,
+    if left at None, len(p_vals) will be used.
     """
-    Nhyp = len(p_vals)
+    # number of hypothesis may be set externally for robustness testing purposes
+    # i.e. does the number of components depende on the number of hypotheses?
+    if Nhyp is None:
+        Nhyp = len(p_vals)
+
+    # if the number of hypotheses is higher than the Nhyp (can happen for robustness testing)
+    # remove the tail elements of p_vals until p_vals has the length Nhyp
+    if Nhyp < len(p_vals):
+        p_vals = p_vals[:Nhyp]
+
     bonf_level = sig_level / Nhyp
     
     if bonf_level < 1.0 / Nsurr:
-        raise "Will not run Bonferroni, not enough surrogates used for the test!"
+        raise "Will not run Bonferroni, not enough surrogates available for the test!"
     
     return p_vals < bonf_level
 
 
-def fdr_test(p_vals, sig_level, Nsurr):
+def fdr_test(p_vals, sig_level, Nsurr, Nhyp = None):
     """
-    Run an FDR corrected multiple hypothesis test on the p-values, given the number
-    of surrogates generated (to upper-bound the p-values of components where 
-    lambda(i) > slambda(j,i) for all j.)
+    Run an FDR multiple testing procedure on p-values <p_vals> with significance
+    level <sig_level> given that <Nsurr> surrogate were used to compute the p-values.
+    Optionally the number of simultaneously tested hypotheses can be set with <Nhyp>,
+    if left at None, len(p_vals) will be used.
+
+    NOTE: if Nhyp < len(p_vals), the p_vals tail will be chopped off so that len(p_val) = Nhyp.
+          Then only will the test be run.
     """
-    Nhyp = len(p_vals)
+    # number of hypothesis may be set externally for robustness testing purposes
+    # i.e. does the number of components depende on the number of hypotheses?
+    if Nhyp is None:
+        Nhyp = len(p_vals)
+
+    # if the number of hypotheses is higher than the Nhyp (can happen for robustness testing)
+    # remove the tail elements of p_vals until p_vals has the length Nhyp
+    if Nhyp < len(p_vals):
+        p_vals = p_vals[:Nhyp]
+
+    # the sorting is done only after the number of p_vals is fixed, see comments.
     sndx = np.argsort(p_vals)
     
     bonf_level = sig_level / Nhyp
@@ -44,10 +70,11 @@ def fdr_test(p_vals, sig_level, Nsurr):
     if bonf_level < 1.0 / Nsurr:
         raise "Will not run FDR, not enough surrogates used for the test!"
     
-    h = np.zeros((Nhyp,), dtype = np.bool)
+    Npvals = len(p_vals)
+    h = np.zeros((Npvals,), dtype = np.bool)
     
     # test the p-values in order of p-values (smallest first)
-    for i in range(Nhyp):
+    for i in range(Npvals):
         
         # select the hypothesis with the i-th lowest p-value
         hndx = sndx[i]
@@ -62,36 +89,27 @@ def fdr_test(p_vals, sig_level, Nsurr):
     return h
 
 
-def sidak_test(p_vals, sig_level, Nsurr):
+def holm_test(p_vals, sig_level, Nsurr, Nhyp = None):
     """
-    Run an FDR-corrected multiple hypothesis test on the p-values, given the number
-    of surrogates generated (to upper-bound the p-values of components where 
-    lambda(i) > slambda(j,i) for all j.)
-    """
-    Nhyp = len(p_vals)
-    sndx = np.argsort(p_vals)
-    
-    bonf_level = sig_level / Nhyp
-    
-    if bonf_level < 1.0 / Nsurr:
-        raise "Will not run Sidak test, not enough surrogates used for the test!"
-    
-    h = np.zeros((Nhyp,), dtype = np.bool)
+    Run a Bonferroni-Holm multiple testing procedure on p-values <p_vals> with significance
+    level <sig_level> given that <Nsurr> surrogate were used to compute the p-values.
+    Optionally the number of simultaneously tested hypotheses can be set with <Nhyp>,
+    if left at None, len(p_vals) will be used.
 
-    levels = (1 - (1 - sig_level)) ** (1.0 / np.arange(Nhyp, 0, -1))
-    nz = np.nonzero(p_vals[sndx] < levels)[0]
-    if nz.size > 0:
-        last = nz[-1]
-        h[sndx[:last+1]] = True
-    
-    return h
-
-
-def holm_test(p_vals, sig_level, Nsurr):
+    NOTE: if Nhyp < len(p_vals), the p_vals tail will be chopped off so that len(p_val) = Nhyp.
+          Then only will the test be run.
     """
-    Run a Holm multiple testing procedure on data.
-    """
-    Nhyp = len(p_vals)
+    # number of hypothesis may be set externally for robustness testing purposes
+    # i.e. does the number of components depende on the number of hypotheses?
+    if Nhyp is None:
+        Nhyp = len(p_vals)
+
+    # if the number of hypotheses is higher than the Nhyp (can happen for robustness testing)
+    # remove the tail elements of p_vals until p_vals has the length Nhyp
+    if Nhyp < len(p_vals):
+        p_vals = p_vals[:Nhyp]
+
+    # the sorting is done only after the number of p_vals is fixed, see comments.
     sndx = np.argsort(p_vals)
     
     bonf_level = sig_level / Nhyp
