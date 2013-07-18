@@ -115,7 +115,7 @@ def holm_test(p_vals, sig_level, Nsurr, Nhyp = None):
     bonf_level = sig_level / Nhyp
     
     if bonf_level < 1.0 / Nsurr:
-        raise "Will not run Holm test, not enough surrogates used for the test!"
+        raise "Will not run Bonferroni-Holm test, not enough surrogates used for the test!"
 
     h = np.zeros((Nhyp,), dtype = np.bool)
 
@@ -133,6 +133,4 @@ def holm_test(p_vals, sig_level, Nsurr, Nhyp = None):
         h[hndx] = True
             
     return h
-
-
 
