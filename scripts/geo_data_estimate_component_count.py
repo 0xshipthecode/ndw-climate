@@ -11,7 +11,7 @@ from component_analysis import pca_eigvals_gf, pca_components_gf, matched_compon
 from spatial_model_generator import constructVAR, make_model_geofield
 from geo_data_loader import load_monthly_sat_all, load_monthly_slp_all, load_monthly_hgt500_all
 from geo_rendering import render_component_single
-from multi_stats import compute_eigvals_pvalues, fdr_test, bonferroni_test, holm_test, sidak_test
+from multi_stats import compute_eigvals_pvalues, fdr_test, bonferroni_test, holm_test
 
 import os.path
 import numpy as np
@@ -225,11 +225,10 @@ else:
         log("Saved results to file %s" % fname)
 
 
-
+# show standard multiple-comparison tests assuming number of hypotheses equal to len(pvals)
 pvals = compute_eigvals_pvalues(dlam, slam_ar)
 log("Bonferroni correction: %d significant components." % np.sum(bonferroni_test(pvals, 0.05, NUM_SURR)))
-log("Holm correction: %d significant components." % np.sum(holm_test(pvals, 0.05, NUM_SURR)))
-log("Sidak correction: %d significant components." % np.sum(sidak_test(pvals, 0.05, NUM_SURR)))
+log("Bonferroni-Holm correction: %d significant components." % np.sum(holm_test(pvals, 0.05, NUM_SURR)))
 fdr_comps = np.sum(fdr_test(pvals, 0.05, NUM_SURR))
 log("FDR correction: %d significant components." % fdr_comps)
 
