@@ -17,26 +17,33 @@ def compute_eigvals_pvalues(dlam, slam):
     return p_vals
         
 
-def bonferroni_test(p_vals, sig_level, Nsurr):
+def bonferroni_test(p_vals, sig_level, Nsurr, Nhyp = None):
     """
-    Run a Bonferroni-corrected multiple hypothesis test.
+    Run a Bonferroni multiple testing procedure on p-values <p_vals> with significance
+    level <sig_level> given that <Nsurr> surrogates were used to compute the p-values.
+    Optionally the number of simultaneously tested hypotheses can be set with <Nhyp>,
+    if left at None, len(p_vals) will be used.
     """
-    Nhyp = len(p_vals)
+    if Nhyp is None:
+        Nhyp = len(p_vals)
+
     bonf_level = sig_level / Nhyp
     
     if bonf_level < 1.0 / Nsurr:
-        raise "Will not run Bonferroni, not enough surrogates used for the test!"
+        raise "Will not run Bonferroni, not enough surrogates available for the test!"
     
     return p_vals < bonf_level
 
 
-def fdr_test(p_vals, sig_level, Nsurr):
+def fdr_test(p_vals, sig_level, Nsurr, Nhyp = None):
     """
-    Run an FDR corrected multiple hypothesis test on the p-values, given the number
-    of surrogates generated (to upper-bound the p-values of components where 
-    lambda(i) > slambda(j,i) for all j.)
+    Run an FDR multiple testing procedure on p-values <p_vals> with significance
+    level <sig_level> given that <Nsurr> surrogate were used to compute the p-values.
+    Optionally the number of simultaneously tested hypotheses can be set with <Nhyp>,
+    if left at None, len(p_vals) will be used.
     """
-    Nhyp = len(p_vals)
+    if Nhyp is None:
+        Nhyp = len(p_vals)
     sndx = np.argsort(p_vals)
     
     bonf_level = sig_level / Nhyp
@@ -62,13 +69,15 @@ def fdr_test(p_vals, sig_level, Nsurr):
     return h
 
 
-def sidak_test(p_vals, sig_level, Nsurr):
+def sidak_test(p_vals, sig_level, Nsurr, Nhyp = None):
     """
-    Run an FDR-corrected multiple hypothesis test on the p-values, given the number
-    of surrogates generated (to upper-bound the p-values of components where 
-    lambda(i) > slambda(j,i) for all j.)
+    Run a Sidak multiple testing procedure on p-values <p_vals> with significance
+    level <sig_level> given that <Nsurr> surrogate were used to compute the p-values.
+    Optionally the number of simultaneously tested hypotheses can be set with <Nhyp>,
+    if left at None, len(p_vals) will be used.
     """
-    Nhyp = len(p_vals)
+    if Nhyp is None:
+        Nhyp = len(p_vals)
     sndx = np.argsort(p_vals)
     
     bonf_level = sig_level / Nhyp
@@ -87,11 +96,15 @@ def sidak_test(p_vals, sig_level, Nsurr):
     return h
 
 
-def holm_test(p_vals, sig_level, Nsurr):
+def holm_test(p_vals, sig_level, Nsurr, Nhyp = None):
     """
-    Run a Holm multiple testing procedure on data.
+    Run a Holm multiple testing procedure on p-values <p_vals> with significance
+    level <sig_level> given that <Nsurr> surrogate were used to compute the p-values.
+    Optionally the number of simultaneously tested hypotheses can be set with <Nhyp>,
+    if left at None, len(p_vals) will be used.
     """
-    Nhyp = len(p_vals)
+    if Nhyp is None:
+        Nhyp = len(p_vals)
     sndx = np.argsort(p_vals)
     
     bonf_level = sig_level / Nhyp
