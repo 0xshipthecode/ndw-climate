@@ -57,7 +57,7 @@ def estimate_components_orthomax(d):
     U = U[:, :NUM_COMPONENTS]
     if not ROTATE_NORMALIZED:
         U *= s[np.newaxis, :NUM_COMPONENTS]
-    Ur, _, iters = orthomax(U, rtol = np.finfo(np.float32).eps ** 0.5,
+    Ur, T, iters = orthomax(U, rtol = np.finfo(np.float32).eps ** 0.5,
                             gamma = GAMMA,
                             maxiter = 500,
                             norm_rows = ROTATE_NORM_ROWS)
@@ -66,7 +66,7 @@ def estimate_components_orthomax(d):
         log('Warning: max iters reached in orthomax, returning failure.')
         return None
     else:
-        return Ur
+        return Ur, T
 
 
 def estimate_components_meng(d):
@@ -102,12 +102,12 @@ def estimate_components_tpca(d):
 #
 DISCARD_RATE = 0.2
 DETREND = True
-NUM_BOOTSTRAPS = 1000
+NUM_BOOTSTRAPS = 2
 NUM_COMPONENTS = 60
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
 MAX_AR_ORDER = 30
-WORKER_COUNT = 20
+WORKER_COUNT = 2
 GAMMA = 1.0
 ROTATE_NORMALIZED = True
 ROTATE_NORM_ROWS = False
@@ -149,10 +149,11 @@ def compute_bootstrap_sample_components(gf, Urd, jobq, resq):
             b *= gf.qea_latitude_weights()
     
         # custom method to compute the components
-        Ur = COMPONENT_ESTIMATOR(b)
-        if Ur is None:
+        Res = COMPONENT_ESTIMATOR(b)
+        if Res is None:
             resq.put(None)
         else:
+            Ur, _ = Res
             # match, flip sign and permute the discovered components    
             perm, sign_flip = match_components_munkres(Urd, Ur)
             Ur = Ur[:, perm[:Nc]]
@@ -189,13 +190,17 @@ Ud = Ud[:, :NUM_COMPONENTS]
 if not ROTATE_NORMALIZED:
     Ud *= sd[np.newaxis, :NUM_COMPONENTS]
     
-log("Total variance explained by selected components %g." % (np.sum(sd[:NUM_COMPONENTS]) / np.sum(sd)))
+log("Total variance %g explained by selected components %g." % (np.sum(sd[:NUM_COMPONENTS]),
+                                                                np.sum(sd[:NUM_COMPONENTS]) / np.sum(sd)))
 
 # estimate the components
-Ur = COMPONENT_ESTIMATOR(d)
+Ur, T = COMPONENT_ESTIMATOR(d)
+T = np.matrix(T)
+
+S2 = np.diag(np.transpose(T) * np.matrix(np.diag(sd[:NUM_COMPONENTS])) * T)
+log("After rotation: total variance explained is %g." % np.sum(S2))
 
 # prepare parallel run
-
 jobq = Queue()
 resq = Queue()
 for i in range(NUM_BOOTSTRAPS):
@@ -206,7 +211,6 @@ for i in range(WORKER_COUNT):
 log("Starting workers")
 workers = [Process(target = compute_bootstrap_sample_components, args = (gf, Ur, jobq, resq)) for i in range(WORKER_COUNT)]
 
-log("Running bootstrap analysis [%d samples] at %s" % (NUM_BOOTSTRAPS, str(t_start)))
 EXTREMA_MEMORY = math.ceil(DISCARD_RATE * NUM_BOOTSTRAPS)
 max_comp = np.tile(np.abs(Ur.copy()), (EXTREMA_MEMORY + 1, 1, 1))
 min_comp = np.tile(np.abs(Ur.copy()), (EXTREMA_MEMORY + 1, 1, 1))
@@ -222,7 +226,7 @@ t_last = t_start
 
 bsmp_done = 0
 divergent_computations = 0
-log("Starting parallel generation of %d bootstraps." % NUM_BOOTSTRAPS)
+log("Running parallel bootstrap with %d iterations at %s" % (NUM_BOOTSTRAPS, str(t_start)))
 while bsmp_done < NUM_BOOTSTRAPS:
     
     # construct the surrogates in parallel
@@ -263,12 +267,18 @@ for w in workers:
 
 var_comp /= (bsmp_done - 1)
 
-print("DONE at %s after %s with %d divergents" % (str(datetime.now()), str(datetime.now() - t_start), divergent_computations))
+log("DONE after %s with %d divergents" % (str(datetime.now() - t_start), divergent_computations))
 
 max_comp = max_comp[1, :, :]
 min_comp = min_comp[EXTREMA_MEMORY, :, :]
 
 # save the results to file
-with open('results/%s_var_b1000_cosweights_varimax%s.bin' % (DATA_NAME,SUFFIX), 'w') as f:
+filename = 'results/%s_var_b1000_cosweights_varimax%s.bin' % (DATA_NAME,SUFFIX)
+with open(filename, 'w') as f:
     cPickle.dump({ 'Ud' : Ud, 'Ur' : Ur, 'max' : max_comp, 'min' : min_comp,
-                  'mean' : mean_comp, 'var' : var_comp, 'dlam' : sd}, f)
+                   'mean' : mean_comp, 'var' : var_comp, 'dlam' : sd,
+                   'lats' : gf.lats, 'lons' : gf.lons}, f)
+
+# Data was saved to file.
+log("Data saved to file %s." % filename)
+log_file.close()

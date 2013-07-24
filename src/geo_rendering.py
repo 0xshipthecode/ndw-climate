@@ -1,12 +1,11 @@
 
 
 from mpl_toolkits.basemap import Basemap
+from mpl_toolkits import basemap
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits import basemap
 import datetime
-
 
 
 def render_component(m, C, lats, lons, clims = None, title = None, cmap = None, cbar = True):
@@ -258,3 +257,139 @@ def render_components(C, lats, lons, fname_tmpl = None, ndx = None):
     if not fname_tmpl:
         plt.show()
     
+
+
+def plot_clusters_robison(ldata, lats, lons, nstep = None,
+                          clims = None, subplot=False, filename=None):
+    """ Plot climatic data using robinson projection
+    
+        Args:
+            ldata: Data to be plotted. It should have a shape as len(lats) x 
+                len(lons).
+            lats: lattitudes (it is assumed that these would be in 90 .. -90)
+            lons: longitudes (it is assumed that these would be in 0 .. 360)
+            
+        Kwargs:
+            nsteps:number of steps in values
+            clims: Minimum and maximum of corresponding colorbar. If value is 
+                'binary' it means to show.
+            subplot: Consider plotting as subplot
+            filename: if None, plot to buffer, otherwise calls savefig()
+    """
+    
+    fig = plt.figure(figsize=(5.6,3))
+    ax = plt.subplot(111)    
+    
+    # adjust missing last value
+    data = np.zeros((ldata.shape[0],ldata.shape[1]+1))
+    data[:,:-1] = ldata
+    data[:,-1] = data[:,0]
+    llons = lons.tolist()
+    llons.append(360)
+    lons = np.array(llons)
+
+    # automatically compute the number of elements in the data if none set
+    if nstep is None:
+        nstep = len(np.unique(ldata))
+  
+    # shift data so lons go from -180 to 180 instead of 0 to 360.
+    data,lons = basemap.shiftgrid(180.,data,lons,start=False)
+    # create Basemap instance for Robinson projection.
+    #m = Basemap(projection='robin',lon_0=0.5*(lons[0]+lons[-1]))
+    #m = Basemap(projection='robin',lon_0=0)
+    m = Basemap(projection='robin',lon_0=0,ax=ax)
+    
+    n = ldata.shape[0]
+    
+    # make filled contour plot.
+    x, y = m(*np.meshgrid(lons, lats))
+    cmap = mpl.cm.jet
+    cs = m.pcolor(x,y,data)
+    # draw coastlines.
+    m.drawcoastlines()
+    # draw a line around the map region.
+    m.drawmapboundary()
+    # draw parallels and meridians.
+    m.drawparallels(np.arange(-60.,90.,30.),labels=[1,0,0,0])
+    #m.drawmeridians(np.arange(0.,420.,60.),labels=[0,0,0,1])
+    m.drawmeridians(np.arange(0.,350.,60.),labels=[0,0,0,1])
+    
+    # add a colorbar
+    cb = m.colorbar(cs,"right", size="2%", pad='2%')
+    # apply minimum and maxium
+    if (clims == None):
+        clims = [data.min(), data.max()]
+        
+    # setting ticks
+    if (clims == 'binary'):
+        clims = [data.min(), data.max()]
+        
+    step = (clims[1] - clims[0]) / float(nstep)
+    tcs = [clims[0]]
+    tcs.extend([clims[0] + x*step for x in range(1,nstep+1)])
+    tcsl = []
+    sstep = nstep / 10
+    for i in xrange(1,nstep+1):
+        if (i % sstep == 0):
+            tcsl.append(str(i))
+        else:
+            tcsl.append('')
+    tcs = [int(t) for t in tcs]
+    cb.set_ticks(tcs)
+    cb.set_ticklabels(tcsl)
+    matplotlib.rcParams.update({'font.size': 10})
+    
+    if filename is not None:
+        fig.savefig(filename, bbox_inches = 'tight', pad_inches = 0.1, transparent = False)
+    elif (subplot == False):
+        plt.show()
+    
+    return m,lats,lons
+
+
+
+def plot_component(ldata, ts, lats, lons,
+                   cc, exp_var, clims = None, subplot=False, filename=None):
+    """ Plot a component in standard format with component in top left, center of component marked in top right
+        and its corresponding time series shown in bottom half of image.
+
+        Args:
+            ldata: Data to be plotted. It should have a shape as len(lats) x 
+                len(lons).
+            ts: the time series corresponding to the component
+            lats: lattitudes (it is assumed that these would be in 90 .. -90)
+            lons: longitudes (it is assumed that these would be in 0 .. 360)
+            cc: the component center as a tuple (lon, lat)
+            clims: optional colormap limits (automatic if None)
+            filename: if None, each plot is shown on screen, otherwise savefig() is called
+    """
+
+    fig = plt.figure(figsize=(15,8))
+    gs = gridspec.GridSpec(2, 2, width_ratios=[6, 4],height_ratios=[6,4]) 
+
+    plt.subplot(gs[0,:-1])
+    c = ldata[i,:,:];
+    plot_data_robinson(c, lats, lons, stitle, clims, subplot = True)    
+        
+    plt.subplot(gs[0,1])
+    m = plot_empty_robinson(lats, lons, ctitle)    
+    la = cinfo[i,0]
+    lo = cinfo[i,1]
+    x,y = m(lo,la)
+    m.plot(x,y,'bo')
+    plt.title(ctitle)
+    
+    plt.subplot(gs[1,:])
+    t = ts[:,i]
+    plt.plot(t)
+    plt.title(tstitle)
+    years = range(1949,2010,5)
+    sy = [str(y) for y in years]
+    plt.xticks(range(12,len(t),60),sy,rotation=30)
+    
+    plt.tight_layout()
+        
+    if filename is not None:
+        fig.savefig(sfilename, bbox_inches = 'tight', pad_inches = 0.5, transparent = False)
+    else:
+        plt.show()
