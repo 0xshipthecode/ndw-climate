@@ -56,8 +56,6 @@ def estimate_components_orthomax(d):
     try:
         U, s, _ = pca_components_gf(d)
         U = U[:, :NUM_COMPONENTS]
-        if not ROTATE_NORMALIZED:
-            U *= s[np.newaxis, :NUM_COMPONENTS]
         Ur, T, iters = orthomax(U,
                                 rtol = np.finfo(np.float32).eps ** 0.5,
                                 gamma = GAMMA,
@@ -81,6 +79,7 @@ def estimate_components_meng(d):
     U, _, _ = pca_components_gf(d)
     C = extract_sparse_components(U, SPCA_SPARSITY, NUM_COMPONENTS, U)
     return C
+
 
 def estimate_components_spca(d):
     """
@@ -106,14 +105,13 @@ def estimate_components_tpca(d):
 # Current simulation parameters
 #
 DISCARD_RATE = 0.2
-NUM_BOOTSTRAPS = 100
+NUM_BOOTSTRAPS = 10
 NUM_COMPONENTS = 59
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
 MAX_AR_ORDER = 30
 WORKER_COUNT = 16
 GAMMA = 1.0
-ROTATE_NORMALIZED = True
 ROTATE_NORM_ROWS = False
 COMPONENT_ESTIMATOR = estimate_components_orthomax
 SPCA_SPARSITY = 200
@@ -125,8 +123,8 @@ SUFFIX =""
 log('Analyzing data: %s with suffix: %s' % (DATA_NAME, SUFFIX))
 log('NBootstraps: %d NComps: %d UseSurrModel: %s CosWeight: %s Detrend: %s' % 
           (NUM_BOOTSTRAPS, NUM_COMPONENTS, USE_SURROGATE_MODEL, COSINE_REWEIGHTING, DETREND))
-log('Gamma: %g RotNorm: %s RotNormRows: %s' %
-          (GAMMA, ROTATE_NORMALIZED, ROTATE_NORM_ROWS))
+log('Gamma: %g RotNormRows: %s' %
+          (GAMMA, ROTATE_NORM_ROWS))
 
 
 loader_functions = {
@@ -190,10 +188,8 @@ log("Analyzing data ...")
 d = gf.data()
 if COSINE_REWEIGHTING:
     d *= gf.qea_latitude_weights()
-Ud, sd, Vtd = pca_components_gf(d)
+Ud, sd, Vt = pca_components_gf(d)
 Ud = Ud[:, :NUM_COMPONENTS]
-if not ROTATE_NORMALIZED:
-    Ud *= sd[np.newaxis, :NUM_COMPONENTS]
     
 log("Total variance %g explained by selected components %g." % (np.sum(sd[:NUM_COMPONENTS]),
                                                                 np.sum(sd[:NUM_COMPONENTS]) / np.sum(sd)))
@@ -201,7 +197,9 @@ log("Total variance %g explained by selected components %g." % (np.sum(sd[:NUM_C
 # estimate the components and their variance
 Ur, T = COMPONENT_ESTIMATOR(d)
 T = np.matrix(T)
-expvar = np.diag(np.transpose(T) * np.matrix(np.diag(sd[:NUM_COMPONENTS])) * T)
+S2 = np.transpose(T) * np.matrix(np.diag(sd[:NUM_COMPONENTS])) * T
+expvar = np.diag(S2)
+Ts = np.transpose(T) * np.diag(sd[:NUM_COMPONENTS]) * Vt[:NUM_COMPONENTS, :]
 
 # prepare parallel run
 jobq = Queue()
@@ -285,13 +283,14 @@ max_comp = max_comp[:,nord]
 min_comp = min_comp[:,nord]
 mean_comp = mean_comp[:,nord]
 var_comp = var_comp[:,nord]
+Ts = Ts[nord, :]
 
 # save the results to file
 filename = 'results/%s_var_b1000_cosweights_varimax%s.bin' % (DATA_NAME,SUFFIX)
 with open(filename, 'w') as f:
     cPickle.dump({ 'Ud' : Ud, 'Ur' : Ur, 'max' : max_comp, 'min' : min_comp,
                    'mean' : mean_comp, 'var' : var_comp, 'dlam' : sd, 'expvar' : expvar,
-                   'lats' : gf.lats, 'lons' : gf.lons}, f)
+                   'lats' : gf.lats, 'lons' : gf.lons, 'S2' : S2, 'ts' : Ts}, f)
 
 # Data was saved to file.
 log("Data saved to file %s." % filename)
