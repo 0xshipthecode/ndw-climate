@@ -53,20 +53,28 @@ def estimate_components_orthomax(d):
     Compute the PCA/FA components based on the input data d
     as returned by GeoField bootstrap constructor.
     """
-    U, s, _ = pca_components_gf(d)
-    U = U[:, :NUM_COMPONENTS]
-    if not ROTATE_NORMALIZED:
-        U *= s[np.newaxis, :NUM_COMPONENTS]
-    Ur, _, iters = orthomax(U, rtol = np.finfo(np.float32).eps ** 0.5,
-                            gamma = GAMMA,
-                            maxiter = 500,
-                            norm_rows = ROTATE_NORM_ROWS)
-    Ur /= np.sum(Ur**2, axis = 0) ** 0.5
-    if iters >= 499:
-        log('Warning: max iters reached in orthomax, returning failure.')
-        return None
-    else:
-        return Ur
+    try:
+        U, s, _ = pca_components_gf(d)
+        U = U[:, :NUM_COMPONENTS]
+        if not ROTATE_NORMALIZED:
+            U *= s[np.newaxis, :NUM_COMPONENTS]
+        Ur, _, iters = orthomax(U,
+                                rtol = np.finfo(np.float32).eps ** 0.5,
+                                gamma = GAMMA,
+                                maxiter = 500,
+                                norm_rows = ROTATE_NORM_ROWS)
+        Ur /= np.sum(Ur**2, axis = 0) ** 0.5
+        if iters >= 499:
+            return None
+        else:
+            return Ur
+    except LinAlgError as e: 
+        print("**LINALG ERROR** code: %d text : %s" % (e.errno, e.strerror))
+    except:
+        print("**UNEXPECTED ERROR** %s" % sys.exc_info()[0])
+
+    # indicate computation failed
+    return None
 
 
 def estimate_components_meng(d):
@@ -102,12 +110,12 @@ def estimate_components_tpca(d):
 #
 DISCARD_RATE = 0.2
 DETREND = True
-NUM_BOOTSTRAPS = 1000
+NUM_BOOTSTRAPS = 100
 NUM_COMPONENTS = 60
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
 MAX_AR_ORDER = 30
-WORKER_COUNT = 20
+WORKER_COUNT = 16
 GAMMA = 1.0
 ROTATE_NORMALIZED = True
 ROTATE_NORM_ROWS = False
@@ -206,7 +214,6 @@ for i in range(WORKER_COUNT):
 log("Starting workers")
 workers = [Process(target = compute_bootstrap_sample_components, args = (gf, Ur, jobq, resq)) for i in range(WORKER_COUNT)]
 
-log("Running bootstrap analysis [%d samples] at %s" % (NUM_BOOTSTRAPS, str(t_start)))
 EXTREMA_MEMORY = math.ceil(DISCARD_RATE * NUM_BOOTSTRAPS)
 max_comp = np.tile(np.abs(Ur.copy()), (EXTREMA_MEMORY + 1, 1, 1))
 min_comp = np.tile(np.abs(Ur.copy()), (EXTREMA_MEMORY + 1, 1, 1))
@@ -219,10 +226,10 @@ for w in workers:
 
 t_start = datetime.now()
 t_last = t_start
+log("Running bootstrap analysis [%d samples] at %s" % (NUM_BOOTSTRAPS, str(t_start)))
 
 bsmp_done = 0
 divergent_computations = 0
-log("Starting parallel generation of %d bootstraps." % NUM_BOOTSTRAPS)
 while bsmp_done < NUM_BOOTSTRAPS:
     
     # construct the surrogates in parallel
@@ -250,7 +257,7 @@ while bsmp_done < NUM_BOOTSTRAPS:
     t_now = datetime.now()
         
     # print progress
-    if (t_now - t_last).total_seconds() > 600:
+    if (t_now - t_last).total_seconds() > 300:
         t_last = t_now
         dt = (t_now - t_start) / bsmp_done * (NUM_BOOTSTRAPS - bsmp_done)
         log("PROGRESS: %d/%d complete, predicted completion at %s, %d total div. computations."
