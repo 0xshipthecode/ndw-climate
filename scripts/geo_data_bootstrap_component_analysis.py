@@ -58,7 +58,7 @@ def estimate_components_orthomax(d):
         U = U[:, :NUM_COMPONENTS]
         if not ROTATE_NORMALIZED:
             U *= s[np.newaxis, :NUM_COMPONENTS]
-        Ur, _, iters = orthomax(U,
+        Ur, T, iters = orthomax(U,
                                 rtol = np.finfo(np.float32).eps ** 0.5,
                                 gamma = GAMMA,
                                 maxiter = 500,
@@ -67,14 +67,11 @@ def estimate_components_orthomax(d):
         if iters >= 499:
             return None
         else:
-            return Ur
+            return Ur, T
     except LinAlgError as e: 
         print("**LINALG ERROR** code: %d text : %s" % (e.errno, e.strerror))
     except:
         print("**UNEXPECTED ERROR** %s" % sys.exc_info()[0])
-
-    # indicate computation failed
-    return None
 
 
 def estimate_components_meng(d):
@@ -109,9 +106,8 @@ def estimate_components_tpca(d):
 # Current simulation parameters
 #
 DISCARD_RATE = 0.2
-DETREND = True
 NUM_BOOTSTRAPS = 100
-NUM_COMPONENTS = 60
+NUM_COMPONENTS = 59
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
 MAX_AR_ORDER = 30
@@ -121,8 +117,9 @@ ROTATE_NORMALIZED = True
 ROTATE_NORM_ROWS = False
 COMPONENT_ESTIMATOR = estimate_components_orthomax
 SPCA_SPARSITY = 200
+DETREND = False
 DATA_NAME = 'slp_all'
-SUFFIX ="_detrended"
+SUFFIX =""
 
 # write all settings to log file
 log('Analyzing data: %s with suffix: %s' % (DATA_NAME, SUFFIX))
@@ -157,10 +154,11 @@ def compute_bootstrap_sample_components(gf, Urd, jobq, resq):
             b *= gf.qea_latitude_weights()
     
         # custom method to compute the components
-        Ur = COMPONENT_ESTIMATOR(b)
-        if Ur is None:
+        Res = COMPONENT_ESTIMATOR(b)
+        if Res is None:
             resq.put(None)
         else:
+            Ur, _ = Res
             # match, flip sign and permute the discovered components    
             perm, sign_flip = match_components_munkres(Urd, Ur)
             Ur = Ur[:, perm[:Nc]]
@@ -197,13 +195,15 @@ Ud = Ud[:, :NUM_COMPONENTS]
 if not ROTATE_NORMALIZED:
     Ud *= sd[np.newaxis, :NUM_COMPONENTS]
     
-log("Total variance explained by selected components %g." % (np.sum(sd[:NUM_COMPONENTS]) / np.sum(sd)))
+log("Total variance %g explained by selected components %g." % (np.sum(sd[:NUM_COMPONENTS]),
+                                                                np.sum(sd[:NUM_COMPONENTS]) / np.sum(sd)))
 
-# estimate the components
-Ur = COMPONENT_ESTIMATOR(d)
+# estimate the components and their variance
+Ur, T = COMPONENT_ESTIMATOR(d)
+T = np.matrix(T)
+expvar = np.diag(np.transpose(T) * np.matrix(np.diag(sd[:NUM_COMPONENTS])) * T)
 
 # prepare parallel run
-
 jobq = Queue()
 resq = Queue()
 for i in range(NUM_BOOTSTRAPS):
@@ -226,7 +226,7 @@ for w in workers:
 
 t_start = datetime.now()
 t_last = t_start
-log("Running bootstrap analysis [%d samples] at %s" % (NUM_BOOTSTRAPS, str(t_start)))
+log("Running parallel bootstrap with %d iterations at %s" % (NUM_BOOTSTRAPS, str(t_start)))
 
 bsmp_done = 0
 divergent_computations = 0
@@ -270,12 +270,29 @@ for w in workers:
 
 var_comp /= (bsmp_done - 1)
 
-print("DONE at %s after %s with %d divergents" % (str(datetime.now()), str(datetime.now() - t_start), divergent_computations))
+log("DONE after %s with %d divergents, now saving data" % (str(datetime.now() - t_start), divergent_computations))
 
 max_comp = max_comp[1, :, :]
 min_comp = min_comp[EXTREMA_MEMORY, :, :]
 
+# reorder all elements according to explained variance (descending)
+nord = np.argsort(expvar)[::-1]
+Ud = Ud[:, nord]
+Ur = Ur[:, nord]
+expvar = expvar[nord]
+sd = sd[nord]
+max_comp = max_comp[:,nord]
+min_comp = min_comp[:,nord]
+mean_comp = mean_comp[:,nord]
+var_comp = var_comp[:,nord]
+
 # save the results to file
-with open('results/%s_var_b1000_cosweights_varimax%s.bin' % (DATA_NAME,SUFFIX), 'w') as f:
+filename = 'results/%s_var_b1000_cosweights_varimax%s.bin' % (DATA_NAME,SUFFIX)
+with open(filename, 'w') as f:
     cPickle.dump({ 'Ud' : Ud, 'Ur' : Ur, 'max' : max_comp, 'min' : min_comp,
-                  'mean' : mean_comp, 'var' : var_comp, 'dlam' : sd}, f)
+                   'mean' : mean_comp, 'var' : var_comp, 'dlam' : sd, 'expvar' : expvar,
+                   'lats' : gf.lats, 'lons' : gf.lons}, f)
+
+# Data was saved to file.
+log("Data saved to file %s." % filename)
+log_file.close()
