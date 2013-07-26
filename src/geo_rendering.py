@@ -259,8 +259,8 @@ def render_components(C, lats, lons, fname_tmpl = None, ndx = None):
     
 
 
-def plot_clusters_robinson(ldata, lats, lons, nstep = None,
-                           clims = None, subplot=False, filename=None):
+def plot_clusters_robinson(ldata, lats, lons, centers = None, nstep = None,
+                           clims = None, subplot = False, filename = None):
     """ Plot climatic data using robinson projection
     
         Args:
@@ -276,8 +276,7 @@ def plot_clusters_robinson(ldata, lats, lons, nstep = None,
             subplot: Consider plotting as subplot
             filename: if None, plot to buffer, otherwise calls savefig()
     """
-    
-    fig = plt.figure(figsize=(5.6,3))
+    fig = plt.figure(figsize=(15, 8))
     ax = plt.subplot(111)    
     
     # adjust missing last value
@@ -323,6 +322,12 @@ def plot_clusters_robinson(ldata, lats, lons, nstep = None,
     # setting ticks
     if (clims == 'binary'):
         clims = [data.min(), data.max()]
+
+    # draw the centers black
+    if centers is not None:
+        for c_i in centers:
+            x, y = m(*c_i)
+            m.plot(x, y, 'ko')
         
     step = (clims[1] - clims[0]) / float(nstep)
     tcs = [clims[0]]
