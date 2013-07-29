@@ -9,7 +9,8 @@ from component_analysis import pca_components_gf, orthomax, match_components_mun
 from geo_rendering import render_components, render_component_triple, render_component_single
 from spatial_model_generator import constructVAR, make_model_geofield
 from spca_meng import extract_sparse_components
-from error_metrics import estimate_snr, mse_error, marpe_error
+#from error_metrics import estimate_snr, mse_error, marpe_error
+
 from geo_data_loader import load_monthly_slp_all, load_monthly_sat_all, load_monthly_hgt500_all
 from multiprocessing import Process, Queue, Pool
 
@@ -19,6 +20,7 @@ import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.stats as scist
 import cPickle
 import random
 from datetime import date, datetime
@@ -59,9 +61,7 @@ def estimate_components_orthomax(d):
         Ur, T, iters = orthomax(U,
                                 rtol = np.finfo(np.float32).eps ** 0.5,
                                 gamma = GAMMA,
-                                maxiter = 500,
-                                norm_rows = ROTATE_NORM_ROWS)
-        Ur /= np.sum(Ur**2, axis = 0) ** 0.5
+                                maxiter = 500)
         if iters >= 499:
             return None
         else:
@@ -105,26 +105,28 @@ def estimate_components_tpca(d):
 # Current simulation parameters
 #
 DISCARD_RATE = 0.2
-NUM_BOOTSTRAPS = 10
-NUM_COMPONENTS = 59
+NUM_BOOTSTRAPS = 0
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
 MAX_AR_ORDER = 30
 WORKER_COUNT = 16
 GAMMA = 1.0
-ROTATE_NORM_ROWS = False
 COMPONENT_ESTIMATOR = estimate_components_orthomax
 SPCA_SPARSITY = 200
-DETREND = False
-DATA_NAME = 'slp_all'
-SUFFIX =""
+
+if len(sys.argv) < 3:
+    print("Usage: geo_data_bootstrap_component_analysis.py <data_name> <detrend_flag> <comp_count>")
+    sys.exit(1)
+
+DATA_NAME = sys.argv[1]
+DETREND = sys.argv[2].lower() == "true"
+SUFFIX ="_detrended" if DETREND else ""
+NUM_COMPONENTS = int(sys.argv[3])
 
 # write all settings to log file
 log('Analyzing data: %s with suffix: %s' % (DATA_NAME, SUFFIX))
-log('NBootstraps: %d NComps: %d UseSurrModel: %s CosWeight: %s Detrend: %s' % 
-          (NUM_BOOTSTRAPS, NUM_COMPONENTS, USE_SURROGATE_MODEL, COSINE_REWEIGHTING, DETREND))
-log('Gamma: %g RotNormRows: %s' %
-          (GAMMA, ROTATE_NORM_ROWS))
+log('NBootstraps: %d NComps: %d UseSurrModel: %s CosWeight: %s Detrend: %s Gamma: %g' % 
+          (NUM_BOOTSTRAPS, NUM_COMPONENTS, USE_SURROGATE_MODEL, COSINE_REWEIGHTING, DETREND, GAMMA))
 
 
 loader_functions = {
@@ -170,6 +172,9 @@ os.chdir('/home/martin/Projects/Climate/ndw-climate/')
 log("Loading geo field %s ..." % DATA_NAME)
 gf = loader_functions[DATA_NAME]()
 
+if DETREND:
+    gf.detrend()
+
 if USE_SURROGATE_MODEL:
     pool = Pool(WORKER_COUNT)
     sgf = SurrGeoFieldAR([0, MAX_AR_ORDER], 'sbc')
@@ -188,18 +193,37 @@ log("Analyzing data ...")
 d = gf.data()
 if COSINE_REWEIGHTING:
     d *= gf.qea_latitude_weights()
-Ud, sd, Vt = pca_components_gf(d)
+
+# note: s2 is not S from USV, it is already squared and scaled to represent variance
+Ud, s2, Vt = pca_components_gf(d)
+s_orig = ((Vt.shape[1] - 1) * s2) ** 0.5
+du = np.reshape(d, (768, 71*144)).transpose()
+dm = du - np.mean(du, axis=1)[:, np.newaxis]
+log("**DEBUG**: reconstruction check, diff from original SVD %g" 
+    % np.sum( (np.dot(np.dot(Ud, np.diag(s_orig)), Vt) - dm)**2))
+
+
 Ud = Ud[:, :NUM_COMPONENTS]
-    
-log("Total variance %g explained by selected components %g." % (np.sum(sd[:NUM_COMPONENTS]),
-                                                                np.sum(sd[:NUM_COMPONENTS]) / np.sum(sd)))
+Vt = Vt[:NUM_COMPONENTS, :]
+s2n = s2[:NUM_COMPONENTS]
+s_orign = s_orig[:NUM_COMPONENTS]
+log("Total variance %g explained by selected components %g." % (np.sum(s2n), np.sum(s2n) / np.sum(s2)))
 
 # estimate the components and their variance
-Ur, T = COMPONENT_ESTIMATOR(d)
-T = np.matrix(T)
-S2 = np.transpose(T) * np.matrix(np.diag(sd[:NUM_COMPONENTS])) * T
+Ur, Rot = COMPONENT_ESTIMATOR(d)
+Rot = np.matrix(Rot)
+log("**DEBUG** Rot*Rot^T - I = %g" % np.sum(np.asarray(Rot * np.transpose(Rot) - np.eye(NUM_COMPONENTS)) ** 2))
+
+log("**DEBUG** Ur - Ud*Rot MSE os: %g" % (np.sum((np.asarray(Ud * Rot) - Ur)**2) / np.prod(Ur.shape)))
+
+# matrix with diagonal containing variances of rotated components
+S2 = np.dot(np.dot(np.transpose(Rot), np.matrix(np.diag(s2n))), Rot)
 expvar = np.diag(S2)
-Ts = np.transpose(T) * np.diag(sd[:NUM_COMPONENTS]) * Vt[:NUM_COMPONENTS, :]
+
+Ts = np.dot(np.transpose(Rot), np.diag(s_orign)) * Vt
+
+log("**DEBUG**: reconstruction check, MSE is from rotated %g" % (np.sum((np.asarray(Ur * Ts) - dm)**2) / np.prod(dm.shape)))
+log("**DEBUG**: average variance of data %g" % (np.mean(np.var(dm, axis=1))))
 
 # prepare parallel run
 jobq = Queue()
@@ -266,19 +290,35 @@ while bsmp_done < NUM_BOOTSTRAPS:
 for w in workers:
     w.join()
 
-var_comp /= (bsmp_done - 1)
+if bsmp_done > 1:
+    var_comp /= (bsmp_done - 1)
 
-log("DONE after %s with %d divergents, now saving data" % (str(datetime.now() - t_start), divergent_computations))
+    log("DONE after %s with %d divergents, now saving data" % (str(datetime.now() - t_start), divergent_computations))
 
-max_comp = max_comp[1, :, :]
-min_comp = min_comp[EXTREMA_MEMORY, :, :]
+    max_comp = max_comp[1, :, :]
+    min_comp = min_comp[EXTREMA_MEMORY, :, :]
+
+# compute variance explained by each component using regression
+def residual_var(d, pc):
+    rvar = 0.0
+    for i in range(d.shape[1]):
+        for j in range(d.shape[2]):
+            sl, inter, _, _, _ = scist.linregress(pc, d[:, i, j])
+            rvar += np.var(d[:, i, j] - (sl * pc + inter))
+    return rvar
+
+total_var = np.sum(np.var(d, axis = 0))
+reg_expvar = np.zeros(expvar.shape)
+for i in range(NUM_COMPONENTS):
+    reg_expvar[i] = total_var - residual_var(d, Ts[i,:])
 
 # reorder all elements according to explained variance (descending)
 nord = np.argsort(expvar)[::-1]
 Ud = Ud[:, nord]
 Ur = Ur[:, nord]
 expvar = expvar[nord]
-sd = sd[nord]
+reg_expvar = reg_expvar[nord]
+s2 = s2[nord]
 max_comp = max_comp[:,nord]
 min_comp = min_comp[:,nord]
 mean_comp = mean_comp[:,nord]
@@ -286,11 +326,12 @@ var_comp = var_comp[:,nord]
 Ts = Ts[nord, :]
 
 # save the results to file
-filename = 'results/%s_var_b1000_cosweights_varimax%s.bin' % (DATA_NAME,SUFFIX)
+filename = 'results/%s_var_b%d_cosweights_varimax%s.bin' % (DATA_NAME,NUM_BOOTSTRAPS,SUFFIX)
 with open(filename, 'w') as f:
     cPickle.dump({ 'Ud' : Ud, 'Ur' : Ur, 'max' : max_comp, 'min' : min_comp,
-                   'mean' : mean_comp, 'var' : var_comp, 'dlam' : sd, 'expvar' : expvar,
-                   'lats' : gf.lats, 'lons' : gf.lons, 'S2' : S2, 'ts' : Ts}, f)
+                   'mean' : mean_comp, 'var' : var_comp, 's2' : s2, 'expvar' : expvar,
+                   'lats' : gf.lats, 'lons' : gf.lons, 'ts' : Ts,
+                   'reg_expvar' : reg_expvar, 'total_var' : total_var}, f)
 
 # Data was saved to file.
 log("Data saved to file %s." % filename)
