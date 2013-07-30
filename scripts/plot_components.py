@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import matplotlib
+matplotlib.use('Agg')
+
 import geo_rendering as gr
 import numpy as np
 import sys
