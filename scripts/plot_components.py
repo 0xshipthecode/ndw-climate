@@ -16,9 +16,16 @@ def tofield(d, lats, lons):
 
 
 if __name__ == '__main__':
+
     if len(sys.argv) < 4:
-        print("Usage: plot_components.py <component_file> <output_directory> <prefix>")
+        print("Usage: plot_components.py <component_file> <output_directory> <prefix> [euro_centered?]")
         sys.exit(1)
+
+    # by default euro_centered is set to True
+    if len(sys.argv) < 5:
+        euro_centered = True
+    else:
+        euro_centered = (sys.argv[4].lower() == "true")
 
     # read in args
     comp_file = sys.argv[1]
@@ -54,6 +61,7 @@ if __name__ == '__main__':
         center_i = (lons[clon], lats[clat])
         centers.append(center_i)
         gr.plot_component_robinson(c_i, ts[i,:], lats, lons, center_i, regexpvar[i] / total_var,
+                                   euro_centered = euro_centered,
                                    filename = os.path.join(output_dir, '%s_comp_%d.png' % (prefix, i+1)))
         plt.close("all")
 
