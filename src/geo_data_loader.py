@@ -47,6 +47,14 @@ def load_monthly_slp_all(from_date = date(1948, 1, 1),
                                      from_date, to_date, months, None, [-89, 89],
                                      None)
 
+def load_monthly_slp2x2_all(from_date = date(1948, 1, 1),
+                         to_date = date(2012, 1, 1),
+                         months = None):
+    return load_monthly_data_general('data/slp_2x2.mon.mean.nc', 'slp',
+                                     from_date, to_date, months, None, [-89, 89],
+                                     None)
+
+
 def load_monthly_slp_all2(from_date = date(1948, 1, 1),
                           to_date = date(2012, 1, 1),
                           months = None):
