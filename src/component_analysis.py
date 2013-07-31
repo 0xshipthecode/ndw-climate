@@ -169,11 +169,22 @@ def match_components_munkres(U1, U2):
     U1s = 1.0 / np.sum(U1**2, axis = 0) ** 0.5
     U2s = 1.0 / np.sum(U2**2, axis = 0) ** 0.5
     C = U1s[:, np.newaxis] * C * U2s[np.newaxis, :]
+
+    return match_components_from_matrix(C)
     
+
+def match_components_from_matrix(C):
+    """
+    Find a maximal pairwise matching (using absolute value of C[i,j])
+    between components, where the similarity between components is given
+    by C.  C is typically either the correlation or dot product.
+    """
+    NC = C.shape[1]
+
     # find optimal matching of components
     m = Munkres()
     match = m.compute(1.0 - np.abs(C))
-    perm = np.zeros((NC,), dtype = np.int)
+    perm = -1 * np.ones((NC,), dtype = np.int)
     sign_flip = np.zeros((1, NC), dtype = np.int)
     for i in range(len(match)):
         m_i = match[i]
