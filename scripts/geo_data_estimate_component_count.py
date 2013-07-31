@@ -26,17 +26,18 @@ NUM_SURR = 20000
 USE_MUVAR = False
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
-NUM_EIGVALS = 100
+NUM_EIGVALS = None
 WORKER_COUNT = 20
 MAX_AR_ORDER = 30
 DETREND = True
-DATA_NAME = 'slp_all'
+DATA_NAME = 'slp2x2_all'
 SUFFIX ="_detrended"
 
 
 loader_functions = {
     'sat_all' : load_monthly_sat_all,
     'slp_all' : load_monthly_slp_all,
+    'slp2x2_all' : load_monthly_slp2x2_all,
     'hgt500_all' : load_monthly_hgt500_all
 }
 
@@ -48,16 +49,20 @@ def log(msg):
     log_file.write('[%s] %s\n' % (str(datetime.now()), msg))
     log_file.flush()
 
-log('Analyzing data: %s with suffix: %s' % (DATA_NAME, SUFFIX))
-log('Nsurr: %d Muvar: %s UseSurrModel: %s CosWeight: %s NumEigvals: %d Detrend: %s' % 
-          (NUM_SURR, USE_MUVAR, USE_SURROGATE_MODEL, COSINE_REWEIGHTING, NUM_EIGVALS, DETREND))
-
 os.chdir('/home/martin/Projects/Climate/ndw-climate/')
 log("Loading geo field...")
 
 # this function loads the data and does SOME preprocessing on it,
 # examine the function in src/geo_data_loader.py to see exactly what it's doing
 gf = loader_functions[DATA_NAME]()
+
+if NUM_EIGVALS is None:
+    NUM_EIGVALS = gf.data().shape[0]
+    log("Number of eigenvalues set automatically to length of time series %d." % NUM_EIGVALS)
+
+log('Analyzing data: %s with suffix: %s' % (DATA_NAME, SUFFIX))
+log('Nsurr: %d Muvar: %s UseSurrModel: %s CosWeight: %s NumEigvals: %d Detrend: %s' % 
+          (NUM_SURR, USE_MUVAR, USE_SURROGATE_MODEL, COSINE_REWEIGHTING, NUM_EIGVALS, DETREND))
 
 # if detrend is required, do it now
 if DETREND:
