@@ -5,7 +5,7 @@
 # Code has BSD license
 # source url: https://github.com/bmc/munkres
 
-# The Kuhn-Munkres algorithm is used to matching components between data and surrogates
+# The Kuhn-Munkres algorithm is used to match components between data and surrogates
 
 import sys 
 
