@@ -260,7 +260,7 @@ def render_components(C, lats, lons, fname_tmpl = None, ndx = None):
 
 
 def plot_clusters_robinson(ldata, lats, lons, centers = None, nstep = None,
-                           clims = None, subplot = False, filename = None):
+                           clims = None, subplot = False, euro_centered = True, filename = None):
     """ Plot climatic data using robinson projection
     
         Args:
@@ -274,6 +274,7 @@ def plot_clusters_robinson(ldata, lats, lons, centers = None, nstep = None,
             clims: Minimum and maximum of corresponding colorbar. If value is 
                 'binary' it means to show.
             subplot: Consider plotting as subplot
+            euro_centered: horizontal center of plot is on meridian 0 if true, on meridian 180 if false
             filename: if None, plot to buffer, otherwise calls savefig()
     """
     fig = plt.figure(figsize=(15, 8))
@@ -292,11 +293,11 @@ def plot_clusters_robinson(ldata, lats, lons, centers = None, nstep = None,
         nstep = len(np.unique(ldata))
   
     # shift data so lons go from -180 to 180 instead of 0 to 360.
-    data,lons = basemap.shiftgrid(180.,data,lons,start=False)
-    # create Basemap instance for Robinson projection.
-    #m = Basemap(projection='robin',lon_0=0.5*(lons[0]+lons[-1]))
-    #m = Basemap(projection='robin',lon_0=0)
-    m = Basemap(projection='robin',lon_0=0,ax=ax)
+    if euro_centered:
+        data,lons = basemap.shiftgrid(180.,data,lons,start=False)
+        m = Basemap(projection='robin',lon_0=0,ax=ax)
+    else:
+        m = Basemap(projection='robin',lon_0=180, ax=ax)
     
     n = ldata.shape[0]
     
@@ -354,7 +355,7 @@ def plot_clusters_robinson(ldata, lats, lons, centers = None, nstep = None,
 
 
 def plot_component_robinson(c, ts, lats, lons,
-                            cc, exp_var_frac, clims = None, filename=None):
+                            cc, exp_var_frac, clims = None, euro_centered = True, filename=None):
     """ Plot a component in standard format with component in top left, center of component marked in top right
         and its corresponding time series shown in bottom half of image.
 
@@ -373,10 +374,10 @@ def plot_component_robinson(c, ts, lats, lons,
     gs = matplotlib.gridspec.GridSpec(2, 2, width_ratios=[6, 4],height_ratios=[6,4]) 
 
     plt.subplot(gs[0,:-1])
-    plot_data_robinson(c, lats, lons, clims, subplot = True)
-    plt.title('Component variance %g' % (100.0 * exp_var_frac))
+    plot_data_robinson(c, lats, lons, clims, euro_centered = euro_centered, subplot = True)
+    plt.title('Explained variance %g%%' % (round(1000.0 * exp_var_frac)/10.0))
     plt.subplot(gs[0,1])
-    m = plot_empty_robinson(lats, lons)
+    m = plot_empty_robinson(lats, lons, euro_centered = euro_centered)
     x,y = m(*cc)
     m.plot(x,y,'bo')
     
@@ -395,7 +396,9 @@ def plot_component_robinson(c, ts, lats, lons,
 
 
 
-def plot_data_robinson(ldata, lats, lons, clims = None, subplot=False, filename=None):
+# Original code of function David Hartman, modified by Martin Vejmelka
+def plot_data_robinson(ldata, lats, lons, clims = None, subplot = False,
+                       euro_centered = True, filename=None):
     """ Plot climatic data using robinson projection
     
         Args:
@@ -403,6 +406,7 @@ def plot_data_robinson(ldata, lats, lons, clims = None, subplot=False, filename=
                 len(lons).
             lats: lattitudes (it is assumed that these would be in 90 .. -90)
             lons: longitudes (it is assumed that these would be in 0 .. 360)
+            euro_centered: horizontal center of plot is on meridian 0 if true, on meridian 180 if false
             
         Kwargs:
             clims: Minimum and maximum of corresponding colorbar. If value is 
@@ -417,10 +421,14 @@ def plot_data_robinson(ldata, lats, lons, clims = None, subplot=False, filename=
     llons.append(360)
     lons = np.array(llons)
   
-    # shift data so lons go from -180 to 180 instead of 0 to 360.
-    data,lons = basemap.shiftgrid(180.,data,lons,start=False)
-    # create Basemap instance for Robinson projection.
-    m = Basemap(projection='robin',lon_0=0)
+    # center on europe (default) or in Pacific
+    if euro_centered:
+        # shift data so lons go from -180 to 180 instead of 0 to 360.
+        data,lons = basemap.shiftgrid(180.,data,lons,start=False)
+        # create Basemap instance for Robinson projection.
+        m = Basemap(projection = 'robin', lon_0 = 0)
+    else:
+        m = Basemap(projection = 'robin', lon_0 = 180)
     
     # make filled contour plot.
     x, y = m(*np.meshgrid(lons, lats))
@@ -467,12 +475,13 @@ def plot_data_robinson(ldata, lats, lons, clims = None, subplot=False, filename=
 
 
 
-def plot_empty_robinson(lats, lons):
+def plot_empty_robinson(lats, lons, euro_centered = True):
     """ Plot climatic data using robinson projection
     
         Args:
             lats: lattitudes (it is assumed that these would be in 90 .. -90)
             lons: longitudes (it is assumed that these would be in 0 .. 360)
+            euro_centered: horizontal center of plot is on meridian 0 if true, on meridian 180 if false
     """
   
     # adjust missing last value
@@ -482,7 +491,8 @@ def plot_empty_robinson(lats, lons):
   
     # shift data so lons go from -180 to 180 instead of 0 to 360.
     # create Basemap instance for Robinson projection.
-    m = Basemap(projection='robin',lon_0=0)
+    lon_0 = 0.0 if euro_centered else 180.0
+    m = Basemap(projection='robin',lon_0=lon_0)
 
     # draw coastlines.
     m.drawcoastlines()
