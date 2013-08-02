@@ -9,7 +9,7 @@ from surr_geo_field_ar import SurrGeoFieldAR
 from multiprocessing import Process, Queue, Pool
 from component_analysis import pca_eigvals_gf, pca_components_gf, matched_components, orthomax
 from spatial_model_generator import constructVAR, make_model_geofield
-from geo_data_loader import load_monthly_sat_all, load_monthly_slp_all, load_monthly_hgt500_all
+from geo_data_loader import load_monthly_sat_all, load_monthly_slp_all, load_monthly_slp2x2_all, load_monthly_hgt500_all
 from geo_rendering import render_component_single
 from multi_stats import compute_eigvals_pvalues, fdr_test, bonferroni_test, holm_test
 
