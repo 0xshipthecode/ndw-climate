@@ -36,8 +36,10 @@ if __name__ == '__main__':
     out_dir = sys.argv[4]
 
     # retrieve data from results
-    lats, lons = d1['lats'], d1['lons']
-    Nlats, Nlons = len(lats), len(lons)
+    lats1, lons1 = d1['lats'], d1['lons']
+    Nlats1, Nlons1 = len(lats1), len(lons1)
+    lats2, lons2 = d2['lats'], d2['lons']
+    Nlats2, Nlons2 = len(lats2), len(lons2)
     comps1, comps2 = d1['Ur'], d2['Ur']
     ts1, ts2 = d1['ts'], d2['ts']
 
@@ -57,7 +59,11 @@ if __name__ == '__main__':
         om1 /= np.sum(om1**2, axis = 0)
         om2 = np.copy(np.asarray(comps2))
         om2 /= np.sum(om2**2, axis = 0)
-        OC = np.dot(np.transpose(om1), om2)
+
+        if om1.shape[0] == om2.shape[0]:
+            OC = np.dot(np.transpose(om1), om2)
+        else:
+            OC = -10 * np.ones((om1.shape[1], om2.shape[1]))
 
     elif sys.argv[3] == 'space':
         m1 = np.copy(np.asarray(comps1))
@@ -95,12 +101,12 @@ if __name__ == '__main__':
             f = plt.figure(figsize = (12, 6))
             gs = matplotlib.gridspec.GridSpec(2, 2, width_ratios=[5, 5],height_ratios=[6,4]) 
             plt.subplot(gs[0,0])
-            plot_data_robinson(np.reshape(comps1[:, i], (Nlats, Nlons)),
-                               lats, lons, subplot = True, euro_centered = True) 
+            plot_data_robinson(np.reshape(comps1[:, i], (Nlats1, Nlons1)),
+                               lats1, lons1, subplot = True, euro_centered = True) 
             plt.title('Component %d' % (i+1))
             plt.subplot(gs[0,1])
-            plot_data_robinson(np.reshape(comps2[:, perm[i]] * sign_flip[i], (Nlats, Nlons)),
-                               lats, lons, subplot = True, euro_centered = True)
+            plot_data_robinson(np.reshape(comps2[:, perm[i]] * sign_flip[i], (Nlats2, Nlons2)),
+                               lats2, lons2, subplot = True, euro_centered = True)
             plt.title('Component %d%s' % (perm[i]+1, " (sign fliped)" if sign_flip[i] == -1 else ""))
             plt.subplot(gs[1,:])
             plt.plot(ts1[i,:].T, 'b-')
