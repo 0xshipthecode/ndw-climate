@@ -11,7 +11,7 @@ from spatial_model_generator import constructVAR, make_model_geofield
 from spca_meng import extract_sparse_components
 #from error_metrics import estimate_snr, mse_error, marpe_error
 
-from geo_data_loader import load_monthly_slp_all, load_monthly_sat_all, load_monthly_hgt500_all
+from geo_data_loader import load_monthly_slp_all, load_monthly_slp2x2_all, load_monthly_sat_all, load_monthly_hgt500_all
 from multiprocessing import Process, Queue, Pool
 
 import math
@@ -132,6 +132,7 @@ log('NBootstraps: %d NComps: %d UseSurrModel: %s CosWeight: %s Detrend: %s Gamma
 loader_functions = {
     'sat_all' : load_monthly_sat_all,
     'slp_all' : load_monthly_slp_all,
+    'slp2x2_all' : load_monthly_slp2x2_all,
     'hgt500_all' : load_monthly_hgt500_all
 }
 
@@ -197,7 +198,7 @@ if COSINE_REWEIGHTING:
 # note: s2 is not S from USV, it is already squared and scaled to represent variance
 Ud, s2, Vt = pca_components_gf(d)
 s_orig = ((Vt.shape[1] - 1) * s2) ** 0.5
-du = np.reshape(d, (768, 71*144)).transpose()
+du = np.reshape(d, (768, d.shape[1]*d.shape[2])).transpose()
 dm = du - np.mean(du, axis=1)[:, np.newaxis]
 log("**DEBUG**: reconstruction check, diff from original SVD %g" 
     % np.sum( (np.dot(np.dot(Ud, np.diag(s_orig)), Vt) - dm)**2))
