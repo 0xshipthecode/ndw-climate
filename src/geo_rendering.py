@@ -8,7 +8,7 @@ import numpy as np
 import datetime
 
 
-def render_component(m, C, lats, lons, clims = None, title = None, cmap = None, cbar = True):
+def render_component(m, C, lats, lons, clims = None, title = None, cmap = None, cbar = True, cbticks = None):
     """
     Render a single component onto the current axes.  Lats/lons must
     be sorted and must correspond to the 2D component C.  The image
@@ -29,7 +29,7 @@ def render_component(m, C, lats, lons, clims = None, title = None, cmap = None, 
         imgplt.set_clim(clims[0], clims[1])
         
     if cbar:
-        plt.colorbar(fraction = 0.07, shrink = 0.5, aspect = 15)
+        plt.colorbar(fraction = 0.07, shrink = 0.5, aspect = 15, ticks = cbticks)
     
     if title != None:
         plt.title(title)
@@ -37,7 +37,8 @@ def render_component(m, C, lats, lons, clims = None, title = None, cmap = None, 
     return imgplt
         
         
-def render_component_single(C, lats, lons, clims = None, fname = None, plt_name = None, cmap = None, cbar = True):
+def render_component_single(C, lats, lons, clims = None, fname = None, plt_name = None,
+                            cmap = None, cbar = True, cbticks = None):
     """
     Render a single component on a plot.
     """
@@ -71,7 +72,7 @@ def render_component_single(C, lats, lons, clims = None, fname = None, plt_name 
         plt.subplots_adjust(left = 0.1, bottom = 0.05, right = 1.0, top = 1.0)
 
     plt.subplot(1, 1, 1)
-    render_component(m, Cout[lat_ndx, :], lats_s, lons_s, clims, plt_name, cmap, cbar)
+    render_component(m, Cout[lat_ndx, :], lats_s, lons_s, clims, plt_name, cmap, cbar, cbticks)
     
     if fname:
         plt.savefig(fname)
@@ -442,6 +443,7 @@ def plot_data_robinson(ldata, lats, lons, clims = None, subplot = False,
         cs = m.contourf(x,y,data,20,cmap=matplotlib.cm.jet,norm=norm)
     else:
         cs = m.contourf(x,y,data,20,cmap=matplotlib.cm.jet)
+
     # draw coastlines.
     m.drawcoastlines()
     # draw a line around the map region.
@@ -449,17 +451,21 @@ def plot_data_robinson(ldata, lats, lons, clims = None, subplot = False,
     # draw parallels and meridians.
     m.drawparallels(np.arange(-60.,90.,30.),labels=[1,0,0,0])
     #m.drawmeridians(np.arange(0.,420.,60.),labels=[0,0,0,1])
-    m.drawmeridians(np.arange(0.,350.,60.),labels=[0,0,0,1])
+    if euro_centered:
+        m.drawmeridians([-135., -45., 45., 135.], labels=[0,0,0,1])
+    else:
+        m.drawmeridians([-135., -45., 45., 135.], labels=[0,0,0,1])
+
     # add a title
-    cb = m.colorbar(cs,"right", size="2%", pad='2%')
+    cb = m.colorbar(cs,"right", size="4%", pad='2%')
     # apply minimum and maxium
     if (clims == None):
         clims = [data.min(), data.max()]
         
-    # setting ticks
+    # setting ticks of color bar
     if (clims == 'binary'):
         clims = [data.min(), data.max()]
-    nstep = 10
+    nstep = 5
     step = (clims[1] - clims[0]) / float(nstep)
     tcs = [clims[0]]
     tcs.extend([clims[0] + x*step for x in range(1,nstep+1)])
