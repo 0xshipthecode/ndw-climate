@@ -99,18 +99,16 @@ def fdr_test(p_vals, sig_level, Nsurr, Nhyp = None):
     h = np.zeros((Npvals,), dtype = np.bool)
     
     # test the p-values in order of p-values (smallest first)
-    for i in range(Npvals):
+    for i in range(Npvals - 1, 0, -1):
         
         # select the hypothesis with the i-th lowest p-value
         hndx = sndx[i]
         
-        # check if we have violated the FDR condition
-        if p_vals[hndx] > (i+1)*bonf_level:
+        # check if we satisfy the FDR condition
+        if p_vals[hndx] <= (i+1)*bonf_level:
+	    h[sndx[:i+1]] = True
             break
         
-        # the hypothesis is true
-        h[hndx] = True
-            
     return h
 
 
@@ -150,7 +148,7 @@ def holm_test(p_vals, sig_level, Nsurr, Nhyp = None):
         # select the hypothesis with the i-th lowest p-value
         hndx = sndx[i]
         
-        # check if we have violated the FDR condition
+        # check if we have violated the Bonf-Holm condition
         if p_vals[hndx] > sig_level / (Nhyp - i):
             break
         
