@@ -3,6 +3,9 @@
 
 # <codecell>
 
+import matplotlib
+matplotlib.use('agg')
+
 from geo_field import GeoField
 from surr_geo_field_ar import SurrGeoFieldAR
 from component_analysis import pca_components_gf, orthomax, match_components_munkres, matched_components
@@ -189,6 +192,20 @@ if USE_SURROGATE_MODEL:
     log("Replaced field with surrogate field.")
     pool.close()
     del pool
+
+
+#log("Rendering orders of fitted AR models.")
+#pool = Pool(WORKER_COUNT)
+#sgf = SurrGeoFieldAR([0, MAX_AR_ORDER], 'sbc')
+#log("Running preparation of surrogates ...")
+#sgf.copy_field(gf)
+#sgf.prepare_surrogates(pool)
+#mo = sgf.model_orders()
+#render_component_single(mo, gf.lats, gf.lons, plt_name = 'Model orders of AR surrogates',
+#                        fname='%s_ar_model_order%s.png' % (DATA_NAME, SUFFIX),
+#                        cbticks = np.arange(0,np.amax(mo)+1,2))
+#pool.close()
+#del pool
 
 log("Analyzing data ...")
 d = gf.data()
