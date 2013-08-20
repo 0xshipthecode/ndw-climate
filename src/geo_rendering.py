@@ -398,8 +398,8 @@ def plot_component_robinson(c, ts, lats, lons,
 
 
 # Original code of function David Hartman, modified by Martin Vejmelka
-def plot_data_robinson(ldata, lats, lons, clims = None, subplot = False,
-                       euro_centered = True, filename=None):
+def plot_data_robinson(ldata, lats, lons, clims = None, subplot = False, add_colorbar = True,
+                       parallel_labels = 'left', euro_centered = True, filename=None):
     """ Plot climatic data using robinson projection
     
         Args:
@@ -449,29 +449,34 @@ def plot_data_robinson(ldata, lats, lons, clims = None, subplot = False,
     # draw a line around the map region.
     m.drawmapboundary()
     # draw parallels and meridians.
-    m.drawparallels(np.arange(-60.,90.,30.),labels=[1,0,0,0])
+    if parallel_labels == 'left':
+        m.drawparallels(np.arange(-60.,90.,30.),labels=[1,0,0,0])
+    else:
+        m.drawparallels(np.arange(-60.,90.,30.),labels=[0,1,0,0])
+    
     #m.drawmeridians(np.arange(0.,420.,60.),labels=[0,0,0,1])
     if euro_centered:
         m.drawmeridians([-135., -45., 45., 135.], labels=[0,0,0,1])
     else:
         m.drawmeridians([-135., -45., 45., 135.], labels=[0,0,0,1])
 
-    # add a title
-    cb = m.colorbar(cs,"right", size="4%", pad='2%')
-    # apply minimum and maxium
-    if (clims == None):
-        clims = [data.min(), data.max()]
+    # add a colorbar
+    if add_colorbar:
+        cb = m.colorbar(cs,"right", size="3%", pad='2%')
+        # apply minimum and maxium
+        if (clims == None):
+            clims = [data.min(), data.max()]
         
-    # setting ticks of color bar
-    if (clims == 'binary'):
-        clims = [data.min(), data.max()]
-    nstep = 5
-    step = (clims[1] - clims[0]) / float(nstep)
-    tcs = [clims[0]]
-    tcs.extend([clims[0] + x*step for x in range(1,nstep+1)])
-    tcs = [round(t,3) for t in tcs]
-    cb.set_ticks(tcs)
-    cb.set_ticklabels(tcs)
+        # setting ticks of color bar
+        if (clims == 'binary'):
+            clims = [data.min(), data.max()]
+        nstep = 5
+        step = (clims[1] - clims[0]) / float(nstep)
+        tcs = [clims[0]]
+        tcs.extend([clims[0] + x*step for x in range(1,nstep+1)])
+        tcs = [round(t,3) for t in tcs]
+        cb.set_ticks(tcs)
+        cb.set_ticklabels(tcs)
 
     if filename is not None:
         plt.savefig(filename, bbox_inches = 'tight', pad_inches = 0.5, transparent = False)
