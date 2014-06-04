@@ -6,7 +6,7 @@ matplotlib.use('Agg')
 from datetime import date, datetime
 from geo_field import GeoField
 from surr_geo_field_ar import SurrGeoFieldAR
-from multiprocessing import Process, Queue, Pool
+from multiprocessing import Pool
 from component_analysis import pca_eigvals_gf, pca_components_gf, matched_components, orthomax
 from spatial_model_generator import constructVAR, make_model_geofield
 from geo_data_loader import load_monthly_sat_all, load_monthly_slp_all, load_monthly_slp2x2_all, load_monthly_hgt500_all
@@ -17,6 +17,7 @@ import os.path
 import numpy as np
 import matplotlib.pyplot as plt
 import cPickle
+import time
 import scipy.signal as sps
 
 #
@@ -24,7 +25,7 @@ import scipy.signal as sps
 #
 
 #NUM_SURR = 20000
-NUM_SURR=200000   # temporary change by martin
+NUM_SURR=40  # temporary change by martin
 USE_MUVAR = False
 USE_SURROGATE_MODEL = False
 COSINE_REWEIGHTING = True
@@ -34,7 +35,7 @@ MAX_AR_ORDER = 30
 DETREND = True
 #DATA_NAME = 'slp2x2_all'
 DATA_NAME = 'slp_all'
-SUFFIX ="_detrended_200k"
+SUFFIX ="_detrended_400k"
 SIG_LEVEL = 0.05  # added user-controlled significance level
 
 
@@ -48,40 +49,48 @@ loader_functions = {
 
 # misc setup
 np.random.seed()
+surr_completed = 0 # global since the append method needs it
+
+def append_to_arrays(slam_ar, slam_w1, slam_f, x):
+    for xi in x:
+        slam_ari, slam_w1i, slam_fi = xi
+        slam_ar[surr_completed,:] = slam_ari
+        slam_w1[surr_completed,:] = slam_wri
+        slam_f[surr_completed,:] = slam_fi
+        surr_completed += 1
+
 
 # The function used in the workers
-def compute_surrogate_cov_eigvals(sd, jobq, resq):
-    while jobq.get() is not None:
+def compute_surrogate_cov_eigvals(sd):
+    # construct AR/SBC surrogates
+    sd.construct_surrogate_with_noise()
+    d = sd.surr_data()
+    if COSINE_REWEIGHTING:
+        d *= sd.qea_latitude_weights()
+    sm_ar = pca_eigvals_gf(d)
+    sm_ar = sm_ar[:NUM_EIGVALS]
 
-        # construct AR/SBC surrogates
-        sd.construct_surrogate_with_noise()
-        d = sd.surr_data()
-        if COSINE_REWEIGHTING:
-            d *= sd.qea_latitude_weights()
-        sm_ar = pca_eigvals_gf(d)
-        sm_ar = sm_ar[:NUM_EIGVALS]
-    
-        # construct fourier surrogates
-        sd.construct_fourier1_surrogates()
-        d = sd.surr_data()
-        if COSINE_REWEIGHTING:
-            d *= sd.qea_latitude_weights()
-        sm_f = pca_eigvals_gf(d)
-        sm_f = sm_f[:NUM_EIGVALS]
+    # construct fourier surrogates
+    sd.construct_fourier1_surrogates()
+    d = sd.surr_data()
+    if COSINE_REWEIGHTING:
+        d *= sd.qea_latitude_weights()
+    sm_f = pca_eigvals_gf(d)
+    sm_f = sm_f[:NUM_EIGVALS]
 
-        # shuffle data (white noise surrogates)
-        d = sd.data()
-        N = d.shape[0]
-        for i in range(d.shape[1]):
-            for j in range(d.shape[2]):
-                ndx = np.argsort(np.random.normal(size = (N,)))
-                d[:, i, j] = d[ndx, i, j]
-        if COSINE_REWEIGHTING:
-            d = d * sd.qea_latitude_weights()
-        sm_w1 = pca_eigvals_gf(d)
-        sm_w1 = sm_w1[:NUM_EIGVALS]
-    
-        resq.put((sm_ar, sm_w1, sm_f))
+    # shuffle data (white noise surrogates)
+    d = sd.data()
+    N = d.shape[0]
+    for i in range(d.shape[1]):
+        for j in range(d.shape[2]):
+            ndx = np.argsort(np.random.normal(size = (N,)))
+            d[:, i, j] = d[ndx, i, j]
+    if COSINE_REWEIGHTING:
+        d = d * sd.qea_latitude_weights()
+    sm_w1 = pca_eigvals_gf(d)
+    sm_w1 = sm_w1[:NUM_EIGVALS]
+
+    return sm_ar, sm_w1, sm_f
 
 
 if __name__ == "__main__":
@@ -160,16 +169,8 @@ if __name__ == "__main__":
                                 fname='%s_ar_model_order%s.png' % (DATA_NAME, SUFFIX))
 
         # construct the job queue
-        jobq = Queue()
-        resq = Queue()
-        for i in range(NUM_SURR):
-            jobq.put(1)
-        for i in range(WORKER_COUNT):
-            jobq.put(None)
-
-        log("Starting workers")
-        workers = [Process(target = compute_surrogate_cov_eigvals,
-                           args = (sgf,jobq,resq)) for i in range(WORKER_COUNT)]
+        log("Constructing pool")
+        pool = Pool(WORKER_COUNT)
 
         # construct the surrogates in parallel
         # we can duplicate the list here without worry as it will be copied into new python processes
@@ -179,40 +180,37 @@ if __name__ == "__main__":
         # generate and compute eigenvalues for 20000 surrogates
         t_start = datetime.now()
 
-        # start all workers (who immediately start processing the job queue)
-        for w in workers:
-            w.start()
-
         # storage for three types of surrogates (allocated AFTER starting workers)
         slam_ar = np.zeros((NUM_SURR, NUM_EIGVALS),dtype=np.float32)
         slam_w1 = np.zeros((NUM_SURR, NUM_EIGVALS),dtype=np.float32)
         slam_f = np.zeros((NUM_SURR, NUM_EIGVALS),dtype=np.float32)
 
-        surr_completed = 0
         t_last = t_start
+        CHUNKSIZE = 50
+        surr_requested = 0
         while surr_completed < NUM_SURR:
 
-            # retrieve the next result
-            slami_ar, slami_w1, slami_f = resq.get()
-            slam_ar[surr_completed, :] = slami_ar
-            slam_w1[surr_completed, :] = slami_w1
-            slam_f[surr_completed, :] = slami_f        
-            surr_completed += 1
-                
+            # avoid spinning in place if all work has already been requested
+            todo = min(CHUNKSIZE, NUM_SURR - surr_requested)
+            if todo == 0:
+                time.sleep(1)
+                continue
+
+            pool.map_async(compute_surrogate_cov_eigvals, [sgf]*todo, callback=lambda x: append_to_arrays(slam_ar, slam_w1, slam_f, x))
+            surr_requested += todo
+
             # predict time to go
             t_now = datetime.now()
                 
             # print progress
-            if (t_now - t_last).total_seconds() > 600:
+            if (t_now - t_last).total_seconds() > 300:
                 t_last = t_now
                 dt = (t_now - t_start) / surr_completed * (NUM_SURR - surr_completed)
                 log("PROGRESS: %d/%d complete, predicted completion at %s."
                     % (surr_completed, NUM_SURR, str(t_now + dt)))
 
-        # wait for all workers to finish
-        for w in workers:
-            w.join()
-                
+        pool.close()
+        pool.join()
         log("DONE after %s" % str(datetime.now() - t_start))
 
         log("Saving computed spectra ...")

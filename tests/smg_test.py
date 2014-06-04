@@ -1,7 +1,6 @@
 
 
-from spatial_model_generator import constructVAR, make_model_geofield,\
-    constructVAR2
+from spatial_model_generator import constructVAR, make_model_geofield
 import numpy as np
 import matplotlib.pyplot as plt
 from geo_field import GeoField
